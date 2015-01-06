@@ -1,0 +1,78 @@
+#! /usr/bin/perl
+#
+# collapse fastq file to remove PCR duplicates
+#   history 20131113
+#   version 0.1
+#           20141105
+#   version 00.2
+#   copyright @cliff zhang
+#
+use strict;
+use warnings;
+use File::Basename;
+use Getopt::Std;
+
+use lib qw "/home/qczhang/lib/perllib";
+use Data::Dumper;
+
+my $inFile = shift;
+my $outFile = shift;
+my $mod = shift;
+if ( ( not defined $mod ) or ( $mod ne "append" ) )  { $mod = "new"; }
+my $fasta = shift;
+
+&main();
+sub main 
+{ 
+    print STDERR "Collapsing file $inFile...\n\t", `date`; 
+    my ( $totalCount, $representativeCount, $collapseRatio, $fastaFile ) = &collapse ( $inFile, $outFile, $mod ); 
+    print "Read collapse successful! Total count: $totalCount, unique count: $representativeCount, unique ratio: $collapseRatio. Refer to the collapsed fasta file: $fastaFile\n";
+    print STDERR "Collapsing file $inFile finished.\n\t", `date`; 
+
+    1;
+}
+
+sub collapse 
+{
+    my ( $inFile, $outFile ) = @_;
+
+    my ( $fileName, $fileDir, $fileSuffix) = fileparse ( $outFile, qr/\.[^.]*/ );
+    my $fastaFile = $fileDir . "/" . $fileName . ".faStat";
+    $fastaFile = $fasta if ( defined $fasta );
+    
+    open ( CL, $inFile );
+    if ( $mod eq "new" ) { open ( OUT1, ">$outFile" ); open ( FA, ">$fastaFile" ); }
+    elsif ( $mod eq "append" ) { open ( OUT1, ">>$outFile" ); open ( FA, ">>$fastaFile" ); }
+    else { die "Error opening $outFile for writing!\n";  }
+
+    my %read_count = ();
+    my $totalCount = 0;
+    my $representativeCount = 0;
+    while ( my $key = <CL> )  {
+        my $seq = <CL>; my $tag = <CL>; my $quality = <CL>; 
+
+        $totalCount++;
+        if ( $totalCount % 1000000 == 0 ) {  print STDERR $totalCount, "\n\t", `date`;  }
+
+        if ( not defined $read_count{$seq} )  {
+            $read_count{$seq} = 1; 
+            print OUT1 $key, $seq, $tag, $quality;
+            $representativeCount++;
+        }
+        else {   $read_count{$seq}++;   } 
+    }
+    close CL;
+    close OUT1;
+
+
+    print FA "## -------------------------------------------------------------------------\n";
+    print FA "## fasta sequence frequencies from file $inFile.\n";
+    print FA "## \t", `date`;
+    print FA "## ------------------\n";
+    foreach my $seq ( sort { $read_count{$b} <=> $read_count{$a} } ( keys %read_count ) ) {   print FA $read_count{$seq}, "\t", $seq;  }
+    close FA;
+
+    my $collapseRatio = sprintf ("%.2f", $representativeCount/$totalCount);
+
+    return ( $totalCount, $representativeCount, $collapseRatio, $fastaFile );
+}

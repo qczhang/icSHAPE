@@ -1,0 +1,235 @@
+#! /usr/bin/perl
+#
+# collapse fastq file to remove PCR duplicates
+#   history 20131113
+#   version 0.1
+#   copyright @cliff zhang
+#
+use strict;
+use warnings;
+use File::Basename;
+use Getopt::Std;
+
+use lib qw "/home/qczhang/lib/perllib";
+use Data::Dumper;
+use Locale::Schedule::Simple qw( &waitForFile &finishTag );
+
+use vars qw ($opt_h $opt_V $opt_D $opt_U $opt_1 $opt_2 $opt_O $opt_p $opt_q $opt_d $opt_l $opt_m $opt_A $opt_C $opt_R $opt_T $opt_S );
+&getopts('hVD1:2:U:O:p:q:d:l:m:A:C:R:T:S:');
+
+my $usage = <<_EOH_;
+## --------------------------------------
+collapse fastq file to remove PCR duplicates
+
+Command:
+$0 -1 fastq_PE_reads_1 -2 fastq_PE_reads_2 -U fastq_SE_reads
+
+# what it is:
+ -U     single ends read
+ -1     paired ends read 1
+ -2     paired ends read 2
+
+# more options:
+ -O     single ends read output 
+ -p     PE read output 1
+ -q     PE read output 2
+
+ -d     head crop
+ -l     tail crop
+ -m     min length
+
+ -C     use a tag file as the agent in checking the availability of the input file
+ -R     use a tag file to mark the output file ready for use
+ -A     use a tag to check whether the splited fastq file is ready to use
+ -T     time out
+ -S     every time sleep
+
+_EOH_
+;
+
+&main();
+
+sub main {
+    my %parameters = &init();
+
+    my $inFile = $parameters{input1};
+    my $inFileStatus = waitForFile ( $inFile, $parameters{waitForTag}, $parameters{sleepTime}, $parameters{timeout} );
+    die "Error! $inFile not available for reading.\n" if ( $inFileStatus != 1 );
+    if ( -e $parameters{output1} ) { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
+
+    my $totalReads = 0;  my $survivalReads = 0;
+    if ( not $parameters{isPairEnds} )  {
+        ( $totalReads, $survivalReads ) = simpleTrimSE ( $inFile, $parameters{output1}, $parameters{HEADCROP}, $parameters{TAILCROP}, $parameters{MINLEN} );
+        finishTag ( $parameters{output1}, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} ); 
+    }
+    else {
+        $inFileStatus = waitForFile ( $parameters{input2}, $parameters{waitForTag}, $parameters{sleepTime}, $parameters{timeout} );
+        die "Error! $parameters{input2} not available for reading.\n" if ( $inFileStatus != 1 );
+        if ( -e $parameters{output2} ) { print STDERR "Warning! $parameters{output2} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output2}`; }
+
+        $inFile = "/tmp/tmp" . $$ . ".fastq";
+        _mergePairEndReads ( $parameters{input1}, $parameters{input2}, $inFile );
+
+        ( $totalReads, $survivalReads ) = simpleTrimPE ( $inFile, $parameters{output1}, $parameters{output2}, $parameters{HEADCROP}, $parameters{TAILCROP}, $parameters{MINLEN} );
+        print STDERR `/bin/rm -f $inFile`;
+
+        finishTag ( $parameters{output1}, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} );
+        finishTag ( $parameters{output2}, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} );
+    }
+
+    finishTag ( $parameters{readyForUse} ) if ( defined $parameters{readyForUse} );
+
+    my $survivalRatio = sprintf ( "%.2f", $survivalReads/$totalReads );
+    print "Read trimming successful! Total count: $totalReads, survival count: $survivalReads, survival ratio: $survivalRatio.\n";
+    if ( not $parameters{isPairEnds} ) { print STDERR "Trimming file $inFile finished.\n\t", `date`; }
+    else { print STDERR "Trimming files $parameters{input1} and $parameters{input2} finished.\n\t", `date`; }
+
+    1;
+}
+
+
+sub init {
+    my %parameters = ();
+
+    die $usage if ( $opt_h || ( ( not $opt_U ) && ( ( not $opt_1 ) || ( not $opt_2 ) ) ) );
+
+    $opt_V = 0 if ( not defined $opt_V );
+    $opt_D = 0 if ( not defined $opt_D );
+
+    my $pwd = `pwd`;  chomp $pwd;
+    if ( defined $opt_U ) {
+        $parameters{input1} = $opt_U;
+        my ($fileName, $fileDir, $fileSuffix) = fileparse($parameters{input1}, qr/\.[^.]*/);
+        if ( defined $opt_O ) { $parameters{output1} = $opt_O; }
+        else { $parameters{output1} = $pwd . "/" . $fileName . ".trimmed" . $fileSuffix; }
+
+        $parameters{isPairEnds} = 0;
+    }
+    elsif ( defined $opt_1 && defined $opt_2 )  {
+        $parameters{input1} = $opt_1;
+        my ($fileName1, $fileDir1, $fileSuffix1) = fileparse($parameters{input1}, qr/\.[^.]*/);
+        $parameters{input2} = $opt_2;
+        my ($fileName2, $fileDir2, $fileSuffix2) = fileparse($parameters{input2}, qr/\.[^.]*/);
+        die "Error! Paired ends reads should have different names.\n" if ( $fileName1 eq $fileName2 );
+
+        if ( defined $opt_p ) { $parameters{output1} = $opt_p; }
+        else { $parameters{output1} = $pwd . "/" . $fileName1 . ".trimmed" . $fileSuffix1; }
+        if ( defined $opt_q ) { $parameters{output2} = $opt_q; }
+        else { $parameters{output2} = $pwd . "/" . $fileName2 . ".trimmed" . $fileSuffix2; }
+
+        $parameters{isPairEnds} = 1;
+    }
+    else { die $usage; }
+
+    if ( defined $opt_d ) { $parameters{HEADCROP} = $opt_d; }
+    else { $parameters{HEADCROP} = 0; }
+    if ( defined $opt_l ) { $parameters{TAILCROP} = $opt_l; }
+    else { $parameters{TAILCROP} = 0; }
+    if ( defined $opt_m ) { $parameters{MINLEN} = $opt_m; }
+    else { $parameters{MINLEN} = 0; }
+
+    if ( defined $opt_C ) { $parameters{checkForAvailability} = $opt_C; }
+    if ( defined $opt_R ) { $parameters{readyForUse} = $opt_R; }
+    if ( defined $opt_A ) { $parameters{waitForTag} = $opt_A; }
+    if ( defined $opt_T ) { $parameters{timeout} = $opt_T; }
+    if ( defined $opt_S ) { $parameters{sleepTime} = $opt_S; }
+    else { $parameters{sleepTime} = 600; }
+
+    print Dumper \%parameters if ( $opt_D );
+    return ( %parameters );
+}
+
+sub simpleTrimSE {
+    my ( $inFile, $outFile, $headToTrim, $tailToTrim, $minLen ) = @_;
+
+    open ( CL, $inFile );
+    open ( OUT1, ">$outFile" );
+    my $totalCount = 0;
+    my $survival = 0;
+    my $len = 0;
+    while ( my $key = <CL> )  {
+        my $seq = <CL>;
+        my $tag = <CL>;
+        my $quality = <CL>;
+
+        $totalCount++;
+        if ( $totalCount % 1000000 == 0 ) {    print STDERR $totalCount, "\n\t", `date`;  }
+
+        $len = length ( $seq ) - $headToTrim - $tailToTrim;
+        $seq = substr ( $seq, $headToTrim, $len );
+        $quality = substr ( $quality, $headToTrim, $len );
+
+        next if ( length($seq) < $minLen );
+        print OUT1 $key, $seq, $tag, $quality;
+
+        $survival++;
+    }
+    close CL;
+    close OUT1;
+
+    return ( $totalCount, $survival );
+}
+
+sub simpleTrimPE {
+    my ( $inFile, $outFile, $outFile2, $headToTrim, $tailToTrim, $minLen ) = @_;
+
+    my $headToTrim1 = 0; my $headToTrim2 = 0;
+    if ( $headToTrim =~ /:/ ) { ( $headToTrim1, $headToTrim2 ) = split ( /:/, $headToTrim ); }
+    else { $headToTrim1 = $headToTrim; $headToTrim2 = $headToTrim; }
+    my $tailToTrim1 = 0; my $tailToTrim2 = 0;
+    if ( $tailToTrim =~ /:/ ) { ( $tailToTrim1, $tailToTrim2 ) = split ( /:/, $tailToTrim ); }
+    else { $tailToTrim1 = $tailToTrim; $tailToTrim2 = $tailToTrim; }
+    my $minLen1 = 0; my $minLen2 = 0;
+    if ( $minLen =~ /:/ ) { ( $minLen1, $minLen2 ) = split ( /:/, $minLen ); }
+    else { $minLen1 = $minLen; $minLen2 = $minLen; }
+
+    open ( CL, $inFile );
+    open ( OUT1, ">$outFile" );
+    open ( OUT2, ">$outFile2" );
+    my $totalCount = 0;
+    my $survival = 0;
+    my $len = 0;
+    while ( my $key = <CL> )  {
+        my $seq = <CL>;
+        my $tag = <CL>;
+        my $quality = <CL>;
+
+        $totalCount++;
+        if ( $totalCount % 1000000 == 0 ) {    print STDERR $totalCount, "\n\t", `date`;  }
+
+        my ( $key1, $key2 ) = split ( /\t/, $key );
+        my ( $seq1, $seq2 ) = split ( /\t/, $seq );
+        my ( $tag1, $tag2 ) = split ( /\t/, $tag );
+        my ( $quality1, $quality2 ) = split ( /\t/, $quality );
+
+        $len = length ( $seq1 ) - $headToTrim1 - $tailToTrim1;
+        $seq1 = substr ( $seq1, $headToTrim1, $len );
+        $quality1 = substr ( $quality1, $headToTrim1, $len );
+        next if ( $len < $minLen1 );
+
+        $len = length ( $seq2 ) - $headToTrim2 - $tailToTrim2;
+        $seq2 = substr ( $seq2, $headToTrim2, $len );
+        $quality2 = substr ( $quality2, $headToTrim2, $len );
+        next if ( $len < $minLen2 );
+
+        print OUT1 join "\n", $key1, $seq1, $tag1, $quality1, "";
+        print OUT2 $key2, $seq2, $tag2, $quality2;
+
+        $survival++;
+    }
+    close CL;
+    close OUT1;
+    close OUT2;
+
+    return ( $totalCount, $survival );
+}
+
+sub _mergePairEndReads {
+    my ( $readFile1, $readFile2, $peFile ) = @_;
+
+    ## should test whether they are of the same length
+    print STDERR "merge two PE fastq files...\n\t", `date`;
+    system ( "paste $readFile1 $readFile2 > $peFile" ); 
+    
+    1;
+}

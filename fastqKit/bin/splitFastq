@@ -1,0 +1,201 @@
+#! /usr/bin/perl
+#
+# split fastq files into volumns or libraries
+#
+use strict;
+use warnings;
+use File::Basename;
+use Getopt::Std;
+
+use lib "/home/qczhang/lib/perllib";
+
+my $inFile = shift;
+my $outDir = shift;
+my $codePos = shift; $codePos--;
+my $codeLength = shift;
+my $mod = shift;
+if ( ( not defined $mod ) or ( $mod ne "append" ) )  { $mod = "new"; }
+    # append will lump reads into files in the outputdirectory with names like LIB_DMSO1.fastq, LIB_DMSO2.fastq...
+    # new will create separate files for each input file, i.e., names like LIB_DMSO1_dataset1.fastq, LIB_DMSO2_dataset1.fastq...
+my $library = shift;
+
+&main ();
+
+sub main 
+{
+    print STDERR "split fastq files $inFile ...\n\t", `date`;
+
+    my $ref_lib_info = ();
+    if ( defined $library ) {
+        my %lib_barcode = ();
+        my @libs = split ( /::/, $library );
+        foreach my $lib ( @libs ) {
+            my ( $barcode, $libName ) = split ( /:/, $lib ) ;
+            $lib_barcode{$barcode} = $libName;
+        }
+        $ref_lib_info = \%lib_barcode;
+    }
+    else { $ref_lib_info = &_genCodeLib ( $codeLength ); }
+
+    my ($inFileName, $inFileDir, $inFileSuffix) = fileparse($inFile, qr/\.[^.]*/);
+    my ( $ref_lib_outFile, $ref_bc_count ) = &splitByLibrary ( $inFile, $outDir, $inFileName, $inFileSuffix, $ref_lib_info );
+
+    my $statFile = $outDir . "/splitFastq.stat";
+    outputStat ( $statFile, $ref_bc_count, $ref_lib_info );
+
+    print "File $inFile successfully splited into:";
+    foreach my $bc ( keys %{$ref_lib_outFile} )  { print " ", $ref_lib_outFile->{$bc} if ( ( -e $ref_lib_outFile->{$bc} ) and ( not -z $ref_lib_outFile->{$bc} ) ); }
+    print "\n";
+    print STDERR "Splitting finished.\n\t", `date`;
+    1;
+}
+
+sub splitByLibrary 
+{
+    my ( $inFastqFile, $outDir, $fileName, $fileSuffix, $ref_library ) = @_;
+
+    my %lib_outFile = ();
+    _prepareLibraryOutputFiles ( $outDir, $fileName, $fileSuffix, \%lib_outFile, $ref_library );
+
+    my $count = 0;
+    my %bc_count = ();
+    my %lib_content = ();
+    my $key1 = "";  my $seq1 = "";  my $tag1 = "";  my $quality1 = "";
+    open ( IN, $inFastqFile );
+    while ( $key1 = <IN> )  {
+        $seq1 = <IN>; $tag1 = <IN>; $quality1 = <IN>;
+
+        $count++;
+        if ( $count % 1000000 == 0 )  {
+            print STDERR "  ", $count, "\t", `date`;
+            _writeCachedOutput ( \%lib_outFile, \%lib_content );
+            _cleanLibContent ( \%lib_content );
+        }
+
+        my $bc = substr ( $seq1, $codePos, $codeLength );
+        my $lib = ( defined $ref_library->{$bc} ) ? $ref_library->{$bc} : "unmatched";
+        &_assignLib ( $key1, $seq1, $tag1, $quality1, $bc, $lib, \%lib_content, \%bc_count );
+    }
+    close IN;
+
+    _writeCachedOutput ( \%lib_outFile, \%lib_content );
+    return ( \%lib_outFile, \%bc_count );
+}
+
+sub outputStat 
+{
+    my ( $statFile, $ref_bc_count, $ref_lib_info ) = @_;
+
+    if ( $mod eq "new" ) {
+        if ( -e $statFile ) {
+            print STDERR "Warning! $statFile exists and will be overwitten.\n";
+            print STDERR `/bin/rm $statFile`;
+        }
+    }
+
+    open ( BCT, ">>$statFile" );
+    print BCT "# ", $inFile, "\n#-------------\n";
+    my $totalCount = 0;
+    foreach my $bc ( keys %{$ref_bc_count} ) { $totalCount += $ref_bc_count->{$bc}; }
+    print BCT "total\t", $totalCount, "\n";
+    foreach my $bc ( sort { $ref_bc_count->{$b} <=> $ref_bc_count->{$a} } ( keys %{$ref_bc_count} ) ) {
+        print BCT $bc, "\t", $ref_bc_count->{$bc};
+        if ( ( defined $library ) and ( defined $ref_lib_info->{$bc} ) )  {   print BCT "\t", $ref_lib_info->{$bc};   }
+        print BCT "\n";
+    }
+    print BCT "\n";
+    close BCT;
+
+    1;
+}
+
+sub _prepareLibraryOutputFiles 
+{
+    my ( $outDir, $fileName, $fileSuffix, $ref_lib_outFile, $ref_library ) = @_;
+
+    my $name = "unmatched";
+    if ( $mod eq "new" ) { $name = ( defined $library ) ? ( "unmatched_" . $fileName ) : ( $fileName . "_unmatched" ); }
+    $ref_lib_outFile->{unmatched} = $outDir . "/" . $name . $fileSuffix;
+
+    if ( ( $mod eq "new" ) and ( -e $ref_lib_outFile->{unmatched} ) ) {
+        print STDERR "Warning! $ref_lib_outFile->{unmatched} exists...will be erased.\n";
+        print STDERR `/bin/rm $ref_lib_outFile->{unmatched}`;
+    }
+
+    foreach my $barcode ( keys %{$ref_library} ) {
+        my $lib = $ref_library->{$barcode};
+        $name = $lib;
+        if ( $mod eq "new" )  { $name = ( defined $library ) ? (  $lib . "_" . $fileName ) : ( $fileName . "_" . $lib ); }
+        my $outFile = $outDir . "/" . $name . $fileSuffix;
+        if ( ( $mod eq "new" ) and ( -e $outFile ) ) {
+            print STDERR "Warning! $outFile exists...will be erased.\n";
+            print STDERR `/bin/rm $outFile`;
+        }
+        $ref_lib_outFile->{$lib} = $outFile;
+    }
+
+    1;
+}
+
+sub _assignLib  
+{
+    my ( $key, $seq, $tag, $quality, $bc, $lib, $ref_lib_content, $ref_bc_count ) = @_;
+
+    if ( not defined $ref_bc_count->{$bc} )  {   $ref_bc_count->{$bc} = 1;   }
+    else {   $ref_bc_count->{$bc}++;   }
+
+    if ( not defined $ref_lib_content->{$lib} )  { $ref_lib_content->{$lib} = join ( "", $key, $seq, $tag, $quality ); }
+    else  { $ref_lib_content->{$lib} .= join ( "", $key, $seq, $tag, $quality ); }
+
+    1;
+}
+
+sub _writeCachedOutput 
+{
+    my ( $ref_outFile, $ref_lib_content ) = @_;
+
+    foreach my $lib ( keys %{$ref_lib_content} )  { 
+        my $ref_outputFile = $ref_outFile->{$lib};
+        open ( OUT, ">>$ref_outputFile" );
+        print OUT $ref_lib_content->{$lib} if ( $ref_lib_content->{$lib} );
+        close OUT;
+    }
+
+    1;
+}
+
+sub _cleanLibContent 
+{
+    my ( $ref_lib_content ) = @_;
+
+    $ref_lib_content->{unmatched} = "";
+    foreach my $lib ( keys %{$ref_lib_content} )  { $ref_lib_content->{$lib} = ""; }
+
+    1;
+}
+
+sub _genCodeLib
+{
+    my $len = shift;
+
+    my @alphabets = ( "A", "T", "G", "C" );
+    my %lib_code = ();
+    $lib_code{unmatched} = "unmatched";
+
+    ## k-mer generator from michael eisen
+    my @words = @alphabets;
+    my @newwords = ();
+    for my $i (1..$len-1)  {
+        undef @newwords;
+        foreach my $w (@words)  {
+            foreach my $b (@alphabets) {
+                push (@newwords,$w.$b);
+            }
+        }
+        undef @words;
+        @words = @newwords;
+    }
+    foreach my $word (@words) { $lib_code{$word} = $word; }
+
+    return \%lib_code;
+}
