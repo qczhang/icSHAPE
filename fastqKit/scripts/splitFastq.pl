@@ -7,15 +7,12 @@ use strict;
 use warnings;
 use File::Basename;
 use Getopt::Std;
-use Data::Dumper;
+use FindBin;
 
-use lib "/home/qczhang/lib/perllib";
-use Locale::Schedule::Simple qw( &waitForFile &finishTag &unFinishTag );
+my $splitFastqbin = "$FindBin::Bin/../bin/splitByBarcode";
 
-my $splitFastqbin = "splitFastq_bin";
-
-use vars qw ($opt_h $opt_V $opt_D $opt_U $opt_1 $opt_2 $opt_l $opt_b $opt_s $opt_d $opt_A $opt_C $opt_R $opt_T $opt_S );
-&getopts('hVD1:2:U:v:l:b:s:d:A:C:R:T:S:');
+use vars qw ($opt_h $opt_V $opt_D $opt_U $opt_1 $opt_2 $opt_l $opt_b $opt_s $opt_d );
+&getopts('hVD1:2:U:l:b:s:d:');
 
 my $usage = <<_EOH_;
 ## --------------------------------------
@@ -28,17 +25,12 @@ $0 -1 fastq_PE_reads_1 -2 fastq_PE_reads_2 -U fastq_SE_reads -l split_by_library
  -1     paired ends read 1
  -2     paired ends read 2
  -U     single ends read
- -l     specify a string to denote different libraries, BARCODE1:LIB_NAME1::BARCODE2:LIB_NAME2::...
+ -b     barcode position and length, separated by semicolon. e.g. 5:4
+ -l     specify a string to denote different libraries. Use the format BARCODE1:LIB_NAME1::BARCODE2:LIB_NAME2::...
 
 # more options:
  -s     simple statistics if split by library
  -d     output directory
-
- -C     use a tag file as the agent in checking the availability of the input file
- -R     use a tag file to mark the output file ready for use
- -A     use a tag to check whether the splited fastq file is ready to use
- -T     time out
- -S     every time sleep
 
 _EOH_
 ;
@@ -51,79 +43,48 @@ sub main {
     my $outDir = $parameters{outDirectory};
     if ( not -e $outDir ) { mkdir $outDir or die "Error! Create $outDir failed.\n"; }
 
-    my @files1 = ();
+    my @files1 = (); my @files2 = ();
     my @fs1 = split ( /:/, $parameters{input1} );
-    foreach my $f ( @fs1 ) {
-        foreach ( glob ( $f ) ) {
-            push @files1, $_;
-        }
-    }
-
-    my @files2 = ();
+    foreach my $f ( @fs1 ) { foreach ( glob ( $f ) ) { push @files1, $_; } }
     if ( $parameters{isPairEnds} ) {
         my @fs2 = split ( /:/, $parameters{input2} );
-        foreach my $f ( @fs2 ) {
-            foreach ( glob ( $f ) ) {
-                push @files2, $_;
-            }
-        }
-
+        foreach my $f ( @fs2 ) { foreach ( glob ( $f ) ) { push @files2, $_; } }
         die "Error! input different number of files for PE mode\n" if ( scalar ( @files1 ) != scalar ( @files2 ) );
     }
 
-    my $fileStart = 0;
     for ( my $fileIdx = 0; $fileIdx < scalar ( @files1 ); $fileIdx++ ) {
         my $file1 = $files1[$fileIdx];
-        if ( $parameters{waitForTag} ) {
-            my $file1Status = waitForFile ( $file1, $parameters{waitForTag}, $parameters{sleepTime}, $parameters{timeout} ) if ( $parameters{waitForTag} );
-            die "Error! $file1 not available." if ( ( $file1Status != 1 ) and ( $file1Status != 0 ) );
-        }
-
         if ( not $parameters{isPairEnds} )  {
+            # note that append will lump reads into files in the outputdirectory with names like LIB_DMSO1.fastq, LIB_DMSO2.fastq...
             print STDERR "$splitFastqbin $file1 $parameters{outDirectory} $parameters{BCPOS} $parameters{BCLENGTH} append $parameters{libraryCode}\n\t", `date`;
             print STDERR `$splitFastqbin $file1 $parameters{outDirectory} $parameters{BCPOS} $parameters{BCLENGTH} append $parameters{libraryCode}`;
-            # append will lump reads into files in the outputdirectory with names like LIB_DMSO1.fastq, LIB_DMSO2.fastq...
-            ## check return status
-            if ( $? != 0 ) { die "Error! splitting file $file1 not successful!\n"; }
+            if ( $? != 0 ) { die "Error! splitting file $file1 not successful!\n"; } ## check return status
         }
         else {
             my $file2 = $files2[$fileIdx];
-            if ( $parameters{waitForTag} ) {
-                my $file2Status = waitForFile ( $file2, $parameters{waitForTag}, $parameters{sleepTime}, $parameters{timeout} ) if ( $parameters{waitForTag} );
-                die "Error! $file2 not available." if ( ( $file2Status != 1 ) and ( $file2Status != 0 ) );
-            }
-
             my $inFastqFile = "/tmp/tmp$$.fastq";
             _mergePairEndReads ( $file1, $file2, $inFastqFile );
             print STDERR "$splitFastqbin $inFastqFile $parameters{outDirectory} $parameters{BCPOS} $parameters{BCLENGTH} append $parameters{libraryCode}\n\t", `date`;
             print STDERR `$splitFastqbin $inFastqFile $parameters{outDirectory} $parameters{BCPOS} $parameters{BCLENGTH} append $parameters{libraryCode}`;
-            if ( $? != 0 ) { 
-                print STDERR `/bin/rm -f $inFastqFile`;
-                die "Error! splitting file $inFastqFile not successful!\n";
-            }
+            if ( $? != 0 ) { print STDERR `/bin/rm -f $inFastqFile`; die "Error! splitting file $inFastqFile not successful!\n"; }
             print STDERR `/bin/rm -f $inFastqFile`;
         }
     }
 
-    my $statFile = $parameters{outDirectory} . "/splitFastq.stat";
-    print STDERR `/bin/mv $statFile $parameters{BCCOUNT}`;
     foreach my $lib ( keys %{$parameters{library}} ) {
-        my $outFile = $parameters{outDirectory} . "/" . $lib . ".fastq";
-        print $outFile, "\n";
-
-        if ( not $parameters{isPairEnds} ) { finishTag ( $outFile, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} ); }
-        else {
-            my $outFile1 = $parameters{outDirectory} . "/r1." . $lib . ".fastq";
-            my $outFile2 = $parameters{outDirectory} . "/r2." . $lib . ".fastq";
-            _splitPairEndReads ( $outFile, $outFile1, $outFile2 );
-            print STDERR `/bin/rm -f $outFile`;
-
-            finishTag ( $outFile1, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} );
-            finishTag ( $outFile2, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} );
-        }
+        my $outFile = $parameters{outDirectory} . "/" . $lib . ".fastq"; ##print $outFile, "\n";
+        my $outFile1 = $parameters{outDirectory} . "/r1." . $lib . ".fastq";
+        my $outFile2 = $parameters{outDirectory} . "/r2." . $lib . ".fastq";
+        _splitPairEndReads ( $outFile, $outFile1, $outFile2 );
+        print STDERR `/bin/rm -f $outFile`;
     }
 
-    if ( defined $parameters{readyForUse} ) { finishTag ( $parameters{readyForUse} ); }
+    my $statFile = $parameters{outDirectory} . "/splitFastq.stat";
+    if ( defined $parameters{BCCOUNT} ) {
+        print STDERR `/bin/mv $statFile $parameters{BCCOUNT}`;
+        $statFile = $parameters{BCCOUNT};
+    }
+    print STDERR "Spliting successful! Check spliting statistics at $statFile\n";
 
     1;
 }
@@ -156,10 +117,7 @@ sub init
     else { die $usage; }
 
     if ( defined $opt_d ) { $parameters{outDirectory} = $opt_d; }
-    else {
-        $parameters{outDirectory} = `pwd`;
-        chomp $parameters{outDirectory};
-    }
+    else { $parameters{outDirectory} = `pwd`; chomp $parameters{outDirectory}; }
 
     if ( defined $opt_l ) {
         die "Error! library barcode position and length must be specified in split_by_library mode!\n" if ( not defined $opt_b ); 
@@ -192,14 +150,6 @@ sub init
 
     if ( defined $opt_s )  { $parameters{BCCOUNT} = $opt_s; }
 
-    if ( defined $opt_A ) { $parameters{waitForTag} = $opt_A; }
-    if ( defined $opt_C ) { $parameters{checkForAvailability} = $opt_C; }
-    if ( defined $opt_R ) { $parameters{readyForUse} = $opt_R; }
-    if ( defined $opt_T ) { $parameters{timeout} = $opt_T; }
-    if ( defined $opt_S ) { $parameters{sleepTime} = $opt_S; }
-    else { $parameters{sleepTime} = 600; }
-
-    print Dumper \%parameters if ( $opt_D );
     return ( %parameters );
 
     1;

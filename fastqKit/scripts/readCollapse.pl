@@ -9,12 +9,13 @@ use strict;
 use warnings;
 use File::Basename;
 use Getopt::Std;
+use FindBin;
 
-my $splitFastqBin = "splitFastq_bin";
-my $readCollapseBin = "readCollapse_bin";
+my $splitFastqbin = "$FindBin::Bin/../bin/splitFastq";
+my $readCollapseBin = "$FindBin::Bin/../bin/readCollapse";
 
-use vars qw ($opt_h $opt_V $opt_D $opt_U $opt_1 $opt_2 $opt_O $opt_p $opt_q $opt_a $opt_f $opt_A $opt_C $opt_R $opt_T $opt_S );
-&getopts('hVDU:1:2:O:p:q:af:A:C:R:T:S:');
+use vars qw ($opt_h $opt_V $opt_D $opt_U $opt_1 $opt_2 $opt_O $opt_p $opt_q $opt_a $opt_f );
+&getopts('hVDU:1:2:O:p:q:af:');
 
 my $usage = <<_EOH_;
 ## --------------------------------------
@@ -33,14 +34,9 @@ $0 -1 fastq_PE_reads_1 -2 fastq_PE_reads_2 -U fastq_SE_reads
  -p     PE read output 1
  -q     PE read output 2
 
- -a     input is fasta file ( to be done )
  -f     unique fasta after collapse
 
- -C     use a tag file as the agent in checking the availability of the input file
- -R     use a tag file to mark the output file ready for use
- -A     use a tag to check whether the splited fastq file is ready to use
- -T     time out
- -S     every time sleep
+ -a     input is fasta file ( not yet done )
 
 _EOH_
 ;
@@ -51,17 +47,12 @@ sub main {
     my %parameters = &init();
 
     my $inFile = $parameters{input1}; my $outFile = $parameters{output1};
-    my $inFileStatus = waitForFile ( $inFile, $parameters{waitForTag}, $parameters{sleepTime}, $parameters{timeout} );
-    die "Error! $inFile not available for reading.\n" if ( $inFileStatus != 1 );
     print STDERR "Collapsing file $inFile...\n\t", `date`;
     if ( -e $parameters{output1} ) { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
     if  ( ( defined $parameters{FASTA} ) and ( -e $parameters{FASTA} ) ) { print STDERR "Warning! $parameters{FASTA} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{FASTA}`; }
 
     if ( $parameters{isPairEnds} )  {
-        $inFileStatus = waitForFile ( $parameters{input2}, $parameters{waitForTag}, $parameters{sleepTime}, $parameters{timeout} );
-        die "Error! $parameters{input2} not available for reading.\n" if ( $inFileStatus != 1 );
         if ( -e $parameters{output2} ) { print STDERR "Warning! $parameters{output2} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output2}`; }
-
         $inFile = "/tmp/tmp" . $$ . ".fastq"; $outFile = "/tmp/tmpOut" . $$ . ".fastq";
         _mergePairEndReads ( $parameters{input1}, $parameters{input2}, $inFile );
     }
@@ -100,16 +91,12 @@ sub main {
         _splitPairEndReads ( $outFile, $parameters{output1}, $parameters{output2} );
         print STDERR `/bin/rm -f $inFile`;
         print STDERR `/bin/rm -f $outFile`;
-
-        finishTag ( $parameters{output1}, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} );
-        finishTag ( $parameters{output2}, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} );
     }
 
-    finishTag ( $parameters{readyForUse} ) if ( defined $parameters{readyForUse} );
-
-    print "Read collapse successful! Total count: $totalReads, unique count: $uniqReads, unique ratio: $uniqRatio.\n";
     if ( not -e $parameters{isPairEnds} ) { print STDERR "Collapsing file $inFile finished.\n\t", `date`; }
     else { print STDERR "Collapsing file $parameters{input1} and $parameters{input2} finished.\n\t", `date`; }
+
+    print "Read collapse successful! Total count: $totalReads, unique count: $uniqReads, unique ratio: $uniqRatio.\n";
     1;
 }
 
@@ -147,14 +134,6 @@ sub init {
     if ( defined $opt_a ) { $parameters{isFasta} = 1; }
     if ( defined $opt_f ) { $parameters{FASTA} = $opt_f; }
 
-    if ( defined $opt_C ) { $parameters{checkForAvailability} = $opt_C; }
-    if ( defined $opt_R ) { $parameters{readyForUse} = $opt_R; }
-    if ( defined $opt_A ) { $parameters{waitForTag} = $opt_A; }
-    if ( defined $opt_T ) { $parameters{timeout} = $opt_T; }
-    if ( defined $opt_S ) { $parameters{sleepTime} = $opt_S; }
-    else { $parameters{sleepTime} = 600; }
-
-    print Dumper \%parameters if ( $opt_D );
     return ( %parameters );
 }
 

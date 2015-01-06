@@ -4,16 +4,13 @@
 #   history 20131113
 #   version 0.1
 #           20141105
-#   version 00.2
+#   version 0.2
 #   copyright @cliff zhang
 #
 use strict;
 use warnings;
 use File::Basename;
 use Getopt::Std;
-
-use lib qw "/home/qczhang/lib/perllib";
-use Data::Dumper;
 
 my $inFile = shift;
 my $outFile = shift;
