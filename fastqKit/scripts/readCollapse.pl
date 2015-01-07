@@ -11,7 +11,7 @@ use File::Basename;
 use Getopt::Std;
 use FindBin;
 
-my $splitFastqbin = "$FindBin::Bin/../bin/splitFastq";
+my $splitFastqBin = "$FindBin::Bin/../bin/splitFastq";
 my $readCollapseBin = "$FindBin::Bin/../bin/readCollapse";
 
 use vars qw ($opt_h $opt_V $opt_D $opt_U $opt_1 $opt_2 $opt_O $opt_p $opt_q $opt_a $opt_f );
