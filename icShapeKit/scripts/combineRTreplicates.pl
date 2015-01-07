@@ -5,11 +5,6 @@ use strict;
 use warnings;
 use File::Basename;
 use Getopt::Std;
-use Data::Dumper;
-
-use lib qw "/home/qczhang/lib/perllib";
-use Statistics::Basic qw(:all);
-use Locale::Schedule::Simple qw( &waitForFile &finishTag );
 
 use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_f  );
 &getopts('hVDi:o:f:');
@@ -71,7 +66,6 @@ sub init
     if ( defined $opt_f )  { $parameters{inputFormat} = $opt_f; }
     else { $parameters{inputFormat} = "bd";  }
 
-    print STDERR Dumper ( \%parameters ) if ( $opt_D );
     return ( %parameters );
 }
 
@@ -95,62 +89,58 @@ sub combineSignals
         $lineCount++;
         print STDERR "  line: $lineCount\n" if ( $lineCount % 10000 == 0 );
 
-        if ( $parameters{inputFormat} eq "enrich" ) {
-        }
-        elsif ( $parameters{inputFormat} =~ /bd/ ) {
-            chomp $line;
-            ( $id, @data ) = split ( /\t/, $line );
+        chomp $line;
+        ( $id, @data ) = split ( /\t/, $line );
 
-            if ( $id eq $idOld ) {
-                if ( $parameters{inputFormat} =~ /normalized/ ) {
-                    if ( $line =~ /baseDensity/ ) {
-                        if ( $lineOld =~ /RTstop/ ) {
-                            ( $id, $len, $type, $rpkm, $scalingFactor, @baseDensities ) = split ( /\t/, $line );
-                            ( $id, $len, $type, $rpkm, $scalingFactor, @rtstops ) = split ( /\t/, $lineOld );
-                        }
-                    }
-                    elsif ( $line =~ /RTstop/ ) {
-                        if ( $lineOld =~ /baseDensity/ ) {
-                            ( $id, $len, $type, $rpkm, $scalingFactor, @baseDensities ) = split ( /\t/, $lineOld );
-                            ( $id, $len, $type, $rpkm, $scalingFactor, @rtstops ) = split ( /\t/, $line );
-                        }
+        if ( $id eq $idOld ) {
+            if ( $parameters{inputFormat} =~ /normalized/ ) {
+                if ( $line =~ /baseDensity/ ) {
+                    if ( $lineOld =~ /RTstop/ ) {
+                        ( $id, $len, $type, $rpkm, $scalingFactor, @baseDensities ) = split ( /\t/, $line );
+                        ( $id, $len, $type, $rpkm, $scalingFactor, @rtstops ) = split ( /\t/, $lineOld );
                     }
                 }
-                else {
-                    ( $id, $len, $rpkm, @baseDensities ) = split ( /\t/, $lineOld );
-                    ( $id, $len, $rpkm, @rtstops ) = split ( /\t/, $line );
-                }
-
-                if ( not defined $ref_trans_len->{$id} ) {
-                    $ref_trans_len->{$id} = $len;
-                    $ref_trans_rpkm->{$id} = $rpkm;
-                    $ref_trans_scalingFactor->{$id} = $scalingFactor if ( $parameters{inputFormat} =~ /normalized/ );
-                    $ref_trans_rtstop->{$id} = [ @rtstops ];
-                    $ref_trans_bd->{$id} = [ @baseDensities ];
-                }
-                else {
-                    die "Inconsistent transcript $id!\n" if ( $len != $ref_trans_len->{$id} );
-                    $ref_trans_rpkm->{$id} .= "," . $rpkm;
-                    $ref_trans_scalingFactor->{$id} .= "," . $scalingFactor if ( $parameters{inputFormat} =~ /normalized/ );
-                    if ( $parameters{inputFormat} =~ /normalized/ ) {
-                        $ref_trans_scalingFactor->{$id} .= "," . $scalingFactor;
-                        for ( my $idxPos = 0; $idxPos < $len; $idxPos++ ) {
-                            $ref_trans_rtstop->{$id}[$idxPos] += $rtstops[$idxPos];
-                            $ref_trans_bd->{$id}[$idxPos] += $baseDensities[$idxPos];
-                        }
-                    }
-                    else {
-                        for ( my $idxPos = 0; $idxPos <= $len; $idxPos++ ) {
-                            $ref_trans_rtstop->{$id}[$idxPos] += $rtstops[$idxPos];
-                            $ref_trans_bd->{$id}[$idxPos] += $baseDensities[$idxPos];
-                        }
+                elsif ( $line =~ /RTstop/ ) {
+                    if ( $lineOld =~ /baseDensity/ ) {
+                        ( $id, $len, $type, $rpkm, $scalingFactor, @baseDensities ) = split ( /\t/, $lineOld );
+                        ( $id, $len, $type, $rpkm, $scalingFactor, @rtstops ) = split ( /\t/, $line );
                     }
                 }
             }
             else {
-                $idOld = $id;
-                $lineOld = $line;
+                ( $id, $len, $rpkm, @baseDensities ) = split ( /\t/, $lineOld );
+                ( $id, $len, $rpkm, @rtstops ) = split ( /\t/, $line );
             }
+
+            if ( not defined $ref_trans_len->{$id} ) {
+                $ref_trans_len->{$id} = $len;
+                $ref_trans_rpkm->{$id} = $rpkm;
+                $ref_trans_scalingFactor->{$id} = $scalingFactor if ( $parameters{inputFormat} =~ /normalized/ );
+                $ref_trans_rtstop->{$id} = [ @rtstops ];
+                $ref_trans_bd->{$id} = [ @baseDensities ];
+            }
+            else {
+                die "Inconsistent transcript $id!\n" if ( $len != $ref_trans_len->{$id} );
+                $ref_trans_rpkm->{$id} .= "," . $rpkm;
+                $ref_trans_scalingFactor->{$id} .= "," . $scalingFactor if ( $parameters{inputFormat} =~ /normalized/ );
+                if ( $parameters{inputFormat} =~ /normalized/ ) {
+                    $ref_trans_scalingFactor->{$id} .= "," . $scalingFactor;
+                    for ( my $idxPos = 0; $idxPos < $len; $idxPos++ ) {
+                        $ref_trans_rtstop->{$id}[$idxPos] += $rtstops[$idxPos];
+                        $ref_trans_bd->{$id}[$idxPos] += $baseDensities[$idxPos];
+                    }
+                }
+                else {
+                    for ( my $idxPos = 0; $idxPos <= $len; $idxPos++ ) {
+                        $ref_trans_rtstop->{$id}[$idxPos] += $rtstops[$idxPos];
+                        $ref_trans_bd->{$id}[$idxPos] += $baseDensities[$idxPos];
+                    }
+                }
+            }
+        }
+        else {
+            $idOld = $id;
+            $lineOld = $line;
         }
     }
     close SG;
@@ -172,25 +162,21 @@ sub outputSignals
     print STDERR "output signal to $signalFile\n", `date`;
     open ( SG, ">$signalFile" );
     foreach my $id ( keys %{$ref_trans_len} ) {
-        if ( $parameters{inputFormat} eq "enrich" ) {
+        if ( $parameters{inputFormat} =~ /normalized/ ) {
+            print SG $id, "\t", $ref_trans_len->{$id}, "\t", $ref_trans_rpkm->{$id}, "\t", $ref_trans_scalingFactor->{$id};
+            for ( my $idxPos = 0; $idxPos < $ref_trans_len->{$id}; $idxPos++ ) { print SG "\t", $ref_trans_bd->{$id}[$idxPos]; }
+            print SG "\n";
+            print SG $id, "\t", $ref_trans_len->{$id}, "\t", $ref_trans_rpkm->{$id}, "\t", $ref_trans_scalingFactor->{$id};
+            for ( my $idxPos = 0; $idxPos < $ref_trans_len->{$id}; $idxPos++ ) { print SG "\t", $ref_trans_rtstop->{$id}[$idxPos]; }
+            print SG "\n";
         }
-        elsif ( $parameters{inputFormat} =~ /bd/ ) {
-            if ( $parameters{inputFormat} =~ /normalized/ ) {
-                print SG $id, "\t", $ref_trans_len->{$id}, "\t", $ref_trans_rpkm->{$id}, "\t", $ref_trans_scalingFactor->{$id};
-                for ( my $idxPos = 0; $idxPos < $ref_trans_len->{$id}; $idxPos++ ) { print SG "\t", $ref_trans_bd->{$id}[$idxPos]; }
-                print SG "\n";
-                print SG $id, "\t", $ref_trans_len->{$id}, "\t", $ref_trans_rpkm->{$id}, "\t", $ref_trans_scalingFactor->{$id};
-                for ( my $idxPos = 0; $idxPos < $ref_trans_len->{$id}; $idxPos++ ) { print SG "\t", $ref_trans_rtstop->{$id}[$idxPos]; }
-                print SG "\n";
-            }
-            else {
-                print SG $id, "\t", $ref_trans_len->{$id}, "\t", $ref_trans_rpkm->{$id};
-                for ( my $idxPos = 0; $idxPos <= $ref_trans_len->{$id}; $idxPos++ ) { print SG "\t", $ref_trans_bd->{$id}[$idxPos]; }
-                print SG "\n";
-                print SG $id, "\t", $ref_trans_len->{$id}, "\t", $ref_trans_rpkm->{$id};
-                for ( my $idxPos = 0; $idxPos <= $ref_trans_len->{$id}; $idxPos++ ) { print SG "\t", $ref_trans_rtstop->{$id}[$idxPos]; }
-                print SG "\n";
-            }
+        else {
+            print SG $id, "\t", $ref_trans_len->{$id}, "\t", $ref_trans_rpkm->{$id};
+            for ( my $idxPos = 0; $idxPos <= $ref_trans_len->{$id}; $idxPos++ ) { print SG "\t", $ref_trans_bd->{$id}[$idxPos]; }
+            print SG "\n";
+            print SG $id, "\t", $ref_trans_len->{$id}, "\t", $ref_trans_rpkm->{$id};
+            for ( my $idxPos = 0; $idxPos <= $ref_trans_len->{$id}; $idxPos++ ) { print SG "\t", $ref_trans_rtstop->{$id}[$idxPos]; }
+            print SG "\n";
         }
     }
     close SG;

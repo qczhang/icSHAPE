@@ -8,7 +8,6 @@ use Data::Dumper;
 use Locale::Bio::IO qw( &readGTF &readFasta );
 
 my %parameters = ( 
-    #gtfFile => "examples/ENSMUST00000134783.gtf",
     gtfFile => "/home/qczhang/database/ensembl/current/mouse/gtf/Mus_musculus.GRCm38.74.gtf",
     gtfSource => "ensembl",
     fastaFile => "/home/qczhang/database/ensembl/current/mouse/gtf/transcriptome.fa"

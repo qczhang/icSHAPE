@@ -5,11 +5,6 @@ use strict;
 use warnings;
 use File::Basename;
 use Getopt::Std;
-use Data::Dumper;
-
-use lib qw "/home/qczhang/lib/perllib";
-use Statistics::Basic qw(:all);
-use Locale::Schedule::Simple qw( &waitForFile &finishTag );
 
 use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_t $opt_T $opt_s $opt_e );
 &getopts('hVDi:o:t:T:s:e:');

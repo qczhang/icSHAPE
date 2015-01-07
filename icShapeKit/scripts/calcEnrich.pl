@@ -1,30 +1,25 @@
 #! /usr/bin/perl
 #
-# generate uniq alignment sam file
-#   1, uniq hit are defined as the hit fragment starting position and the length
+# Calculate enrichment file using RT stop as foreground and base density as background
 #
 use strict;
 use warnings;
 use File::Basename;
 use Getopt::Std;
-use Data::Dumper;
 
-use lib "/home/qczhang/lib/perllib";
-use Locale::Schedule::Simple qw( &waitForFile &finishTag );
-
-use vars qw ($opt_h $opt_V $opt_D $opt_o $opt_f $opt_b $opt_g $opt_d $opt_l $opt_e $opt_w $opt_x $opt_y $opt_A $opt_C $opt_R $opt_T $opt_S );
-&getopts('hVDo:f:b:g:d:l:e:w:x:y:A:C:R:T:S:');
+use vars qw ($opt_h $opt_V $opt_D $opt_o $opt_f $opt_b $opt_g $opt_e $opt_w $opt_x $opt_y );
+&getopts('hVDo:f:b:g:d:l:e:w:x:y:');
 
 my $usage = <<_EOH_;
 ## --------------------------------------
 Calculate enrichment file using RT stop as foreground and base density as background
 
 Command:
- $0 -o output_enrichment_file -f foreground_file  -b background_file
+ $0 -o output_enrichment_file -f foreground_file -b background_file
 # what it is:
  -o     output enrichment file
- -f     RT stop file (must be normalized)
- -b     base density file (must be normalized)
+ -f     target RT stop file (must be normalized)
+ -b     background RT stop file (must be normalized)
 
 # more options:
  -e     enrich method, subtraction or dividing
@@ -36,12 +31,6 @@ Command:
  -l     number of tailing nucleotides to crop (enrichment values will be set to 1 in normal and zero in log space)
  -g     input signals are in log rather than in normal space 
 
- -C     use a tag file as the agent in checking the availability of the input file
- -R     use a tag file to mark the output file ready for use
- -A     use a tag to check whether the splited fastq file is ready to use
- -T     time out
- -S     every time sleep
-
 _EOH_
 ;
 
@@ -51,20 +40,13 @@ _EOH_
 sub main {
     my %parameters = &init();
 
-    my $bgStatus = waitForFile ( $parameters{backgroundFile}, $parameters{waitForTag}, $parameters{sleepTime}, $parameters{timeout} );
-    die "background file $parameters{backgroundFile} not ready!\n" if ( $bgStatus != 1 );
-    my $fgStatus = waitForFile ( $parameters{foregroundFile}, $parameters{waitForTag}, $parameters{sleepTime}, $parameters{timeout} );
-    die "foreground file $parameters{foregroundFile} not ready!\n" if ( $fgStatus != 1 );
-
     my ( $ref_bg_len, $ref_bg_rpkm, $ref_bg_scalingFactor_bd, $ref_bg_baseDensity, $ref_bg_avgRTstop, $ref_bg_scalingFactor_rt, $ref_bg_RTstop ) = &readSignal ( $parameters{backgroundFile} );
     my ( $ref_fg_len, $ref_fg_rpkm, $ref_fg_scalingFactor_bd, $ref_fg_baseDensity, $ref_fg_avgRTstop, $ref_fg_scalingFactor_rt, $ref_fg_RTstop ) = &readSignal ( $parameters{foregroundFile} );
     my $ref_enrichment = &calcEnrichment ( $ref_bg_len, $ref_bg_baseDensity, $ref_bg_RTstop, $ref_fg_len, $ref_fg_baseDensity, $ref_fg_RTstop, $parameters{enrichMethod}, \%parameters );
 
-    &winsorization ( $ref_fg_len, $ref_enrichment, $parameters{headToSkip}, $parameters{tailToSkip}, $parameters{winsorMethod} ) if ( defined $parameters{winsorMethod} );
+    my $headToSkip = 5;  my $tailToSkip = 32;
+    &winsorization ( $ref_fg_len, $ref_enrichment, $headToSkip, $tailToSkip, $parameters{winsorMethod} ) if ( defined $parameters{winsorMethod} );
     &outputEnrichment ( $parameters{enrichmentFile}, $ref_fg_len, $ref_enrichment, $ref_fg_rpkm, $ref_fg_scalingFactor_rt, $ref_fg_RTstop, $ref_bg_rpkm,  $ref_bg_scalingFactor_bd,$ref_bg_scalingFactor_rt, $ref_bg_baseDensity, $ref_bg_RTstop );
-
-    finishTag ( $parameters{enrichmentFile}, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} );
-    finishTag ( $parameters{readyForUse} ) if ( defined $parameters{readyForUse} );
 
     1;
 }
@@ -81,70 +63,16 @@ sub init {
     $parameters{backgroundFile} = $opt_b;
     $parameters{foregroundFile} = $opt_f;
 
-    if ( defined $opt_e ) {
-        $parameters{enrichMethod} = $opt_e;
-    }
-    else {
-        $parameters{enrichMethod} = "complex";
-    }
+    if ( defined $opt_e ) { $parameters{enrichMethod} = $opt_e; }
+    else { $parameters{enrichMethod} = "complex"; }
 
-    if ( defined $opt_w ) {
-        $parameters{winsorMethod} = $opt_w;
-    }
+    if ( defined $opt_w ) { $parameters{winsorMethod} = $opt_w; }
+    if ( defined $opt_x ) { $parameters{subFactor} = $opt_x; }
+    if ( defined $opt_y ) { $parameters{divFactor} = $opt_y; }
 
-    if ( defined $opt_d ) {
-        #$parameters{headToSkip} = $opt_d;
-        $parameters{headToSkip} = 0;
-    }
-    else {
-        $parameters{headToSkip} = 0;
-    }
-    if ( defined $opt_l ) {
-        #$parameters{tailToSkip} = $opt_l;
-        $parameters{tailToSkip} = 0;
-    }
-    else {
-        $parameters{tailToSkip} = 0;
-    }
+    if ( defined $opt_g ) { $parameters{logspace} = 1; }
+    else { $parameters{logspace} = 0; }
 
-    if ( defined $opt_x ) {
-        $parameters{subFactor} = $opt_x;
-    }
-    if ( defined $opt_y ) {
-        $parameters{divFactor} = $opt_y;
-    }
-
-    if ( defined $opt_g ) {
-        $parameters{logspace} = 1;
-    }
-    else {
-        $parameters{logspace} = 0;
-    }
-
-    if ( defined $opt_A ) {
-        $parameters{waitForTag} = $opt_A;
-    }
-
-    if ( defined $opt_C ) {
-        $parameters{checkForAvailability} = $opt_C;
-    }
-
-    if ( defined $opt_R ) {
-        $parameters{readyForUse} = $opt_R;
-    }
-
-    if ( defined $opt_T ) {
-        $parameters{timeout} = $opt_T;
-    }
-
-    if ( defined $opt_S ) {
-        $parameters{sleepTime} = $opt_S;
-    }
-    else {
-        $parameters{sleepTime} = 600;
-    }
-
-    print Dumper \%parameters if ( $opt_D );
     return ( %parameters );
 }
 
@@ -191,8 +119,8 @@ sub readSignal {
 sub calcEnrichment {
     my ( $ref_bg_len, $ref_bg_baseDensity, $ref_bg_RTstop, $ref_fg_len, $ref_fg_baseDensity, $ref_fg_RTstop, $enrichMethod, $ref_parameters ) = @_;
 
-    my $skipHead = $ref_parameters->{headToSkip};
-    my $skipTail = $ref_parameters->{tailToSkip};
+    my $skipHead = 0;
+    my $skipTail = 0;
     my $subFactor = ( defined $ref_parameters->{subFactor} ) ? $ref_parameters->{subFactor} : 1;
     my $divFactor = ( defined $ref_parameters->{divFactor} ) ? $ref_parameters->{divFactor} : 1;
     my %trans_enrichment = ();
