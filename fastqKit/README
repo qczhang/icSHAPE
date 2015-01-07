@@ -1,0 +1,15 @@
+## -------------------------
+fastqKit: fastq tool kit
+copyright by qczhang@stanford.edu
+version 0.01, released on 01/2015
+## -------------------------
+
+for convenience, a third-party adapter trimming tool, Trimmomatic (version 0.30, from Usadel group) is included. Please contact Bjorn Usadel for copyrights and any issue. 
+    Bjorn Usadel.
+    Worringer Weg 1
+    52062 Aachen 
+    Germany 
+    Email: usadel /ta/ mpimp-golm.mpg.de
+    usadel /ta/ bio1.rwth-aachen.de
+
+    Phone: +49 241 80 26634 
