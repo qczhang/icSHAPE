@@ -55,8 +55,8 @@ sub main {
             { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
 
         print STDERR "$simpleTrim -U $inFile -o $outFile.tmp -d $parameters{leading} -m $parameters{minLength}\n";
-#        print STDERR `$simpleTrim -U $inFile -o $outFile.tmp -d $parameters{leading} -m $parameters{minLength}`;
-#        if ( $? ) { die "Error in removing leading nucleotides for file $inFile!\n"; }
+        print STDERR `$simpleTrim -U $inFile -o $outFile.tmp -d $parameters{leading} -m $parameters{minLength}`;
+        if ( $? ) { die "Error in removing leading nucleotides for file $inFile!\n"; }
 
         print STDERR "java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $outFile.tmp $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}\n";
         print STDERR `java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $outFile.tmp $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}`;
@@ -69,8 +69,8 @@ sub main {
         if ( -e $parameters{output2} ) 
             { print STDERR "Warning! $parameters{output2} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output2}`; }
 
-#        print STDERR `$simpleTrim -1 $parameters{input1} -2 $parameters{in}put2} -p $parameters{output1}.tmp -q $parameters{output2}.tmp -d $parameters{leading} -m $parameters{minLength}`;
-#        if ( $? ) { die "Error in removing leading nucleotides for file $inFile!\n"; }
+        print STDERR `$simpleTrim -1 $parameters{input1} -2 $parameters{in}put2} -p $parameters{output1}.tmp -q $parameters{output2}.tmp -d $parameters{leading} -m $parameters{minLength}`;
+        if ( $? ) { die "Error in removing leading nucleotides for file $inFile!\n"; }
 
         print STDERR "java -mx512m -jar $trimmomatic PE -$parameters{coding} -trimlog  $parameters{trimlog} $parameters{output1}.tmp $parameters{output2}.tmp $parameters{output1} $parameters{output1}.unpaired $parameters{output2} $parameters{output2}.unpaired ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}\n";
         print STDERR `java -mx512m -jar $trimmomatic PE -$parameters{coding} -trimlog  $parameters{trimlog} $parameters{output1}.tmp $parameters{output2}.tmp $parameters{output1} $parameters{output1}.unpaired $parameters{output2} $parameters{output2}.unpaired ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}`;
