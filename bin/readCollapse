@@ -34,10 +34,10 @@ sub collapse
     my ( $inFile, $outFile ) = @_;
 
     my ( $fileName, $fileDir, $fileSuffix) = fileparse ( $outFile, qr/\.[^.]*/ );
-    my $fastaFile = $fileDir . "/" . $fileName . ".faStat";
+    my $fastaFile = $fileDir . "/" . $fileName . ".fa";
     $fastaFile = $fasta if ( defined $fasta );
     
-    open ( CL, $inFile );
+    open ( CL, $inFile ) or die ( "Cannot open file $inFile for reading!\n" );
     if ( $mod eq "new" ) { open ( OUT1, ">$outFile" ); open ( FA, ">$fastaFile" ); }
     elsif ( $mod eq "append" ) { open ( OUT1, ">>$outFile" ); open ( FA, ">>$fastaFile" ); }
     else { die "Error opening $outFile for writing!\n";  }

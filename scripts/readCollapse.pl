@@ -14,8 +14,8 @@ use FindBin;
 my $splitFastqBin = "$FindBin::Bin/../bin/splitFastq";
 my $readCollapseBin = "$FindBin::Bin/../bin/readCollapse";
 
-use vars qw ($opt_h $opt_V $opt_D $opt_U $opt_1 $opt_2 $opt_O $opt_p $opt_q $opt_a $opt_f );
-&getopts('hVDU:1:2:O:p:q:af:');
+use vars qw ($opt_h $opt_V $opt_D $opt_U $opt_1 $opt_2 $opt_o $opt_p $opt_q $opt_a $opt_f );
+&getopts('hVDU:1:2:o:p:q:af:');
 
 my $usage = <<_EOH_;
 ## --------------------------------------
@@ -30,7 +30,7 @@ $0 -1 fastq_PE_reads_1 -2 fastq_PE_reads_2 -U fastq_SE_reads
  -2     paired ends read 2
 
 # more options:
- -O     single ends read output 
+ -o     single ends read output 
  -p     PE read output 1
  -q     PE read output 2
 
@@ -47,12 +47,20 @@ sub main {
     my %parameters = &init();
 
     my $inFile = $parameters{input1}; my $outFile = $parameters{output1};
-    print STDERR "Collapsing file $inFile...\n\t", `date`;
-    if ( -e $parameters{output1} ) { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
-    if  ( ( defined $parameters{FASTA} ) and ( -e $parameters{FASTA} ) ) { print STDERR "Warning! $parameters{FASTA} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{FASTA}`; }
-
-    if ( $parameters{isPairEnds} )  {
-        if ( -e $parameters{output2} ) { print STDERR "Warning! $parameters{output2} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output2}`; }
+    if ( not $parameters{isPairEnds} ) {
+        print STDERR "Collapsing file $inFile...\n\t", `date`;
+        if ( -e $parameters{output1} ) 
+            { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
+        if  ( ( defined $parameters{FASTA} ) and ( -e $parameters{FASTA} ) ) 
+            { print STDERR "Warning! $parameters{FASTA} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{FASTA}`; }
+    }
+    else {
+        if ( -e $parameters{output1} ) 
+            { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
+        if ( -e $parameters{output2} ) 
+            { print STDERR "Warning! $parameters{output2} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output2}`; }
+        if  ( ( defined $parameters{FASTA} ) and ( -e $parameters{FASTA} ) ) 
+            { print STDERR "Warning! $parameters{FASTA} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{FASTA}`; }
         $inFile = "/tmp/tmp" . $$ . ".fastq"; $outFile = "/tmp/tmpOut" . $$ . ".fastq";
         _mergePairEndReads ( $parameters{input1}, $parameters{input2}, $inFile );
     }
@@ -86,14 +94,13 @@ sub main {
     }
     my $uniqRatio = sprintf ("%.2f", $uniqReads/$totalReads);
 
-    if ( not $parameters{isPairEnds} ) { finishTag ( $outFile, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} ); }
-    else {
+    if ( $parameters{isPairEnds} ) { 
         _splitPairEndReads ( $outFile, $parameters{output1}, $parameters{output2} );
         print STDERR `/bin/rm -f $inFile`;
         print STDERR `/bin/rm -f $outFile`;
     }
 
-    if ( not -e $parameters{isPairEnds} ) { print STDERR "Collapsing file $inFile finished.\n\t", `date`; }
+    if ( not $parameters{isPairEnds} ) { print STDERR "Collapsing file $inFile finished.\n\t", `date`; }
     else { print STDERR "Collapsing file $parameters{input1} and $parameters{input2} finished.\n\t", `date`; }
 
     print "Read collapse successful! Total count: $totalReads, unique count: $uniqReads, unique ratio: $uniqRatio.\n";
@@ -111,7 +118,7 @@ sub init {
     if ( defined $opt_U ) {
         $parameters{input1} = $opt_U;
         my ($fileName, $fileDir, $fileSuffix) = fileparse($parameters{input1}, qr/\.[^.]*/);
-        if ( defined $opt_O ) { $parameters{output1} = $opt_O; }
+        if ( defined $opt_o ) { $parameters{output1} = $opt_o; }
         else { $parameters{output1} = $pwd . "/" . $fileName . ".collapsed" . $fileSuffix; }
         $parameters{isPairEnds} = 0;
     }
@@ -165,6 +172,7 @@ sub _estimateSplit
     my $file = shift;
     my $fileSize = -s $file;
 
+    if ( not -e $file ) { die "File $file does not exists!\n"; }
     my $pos = 1;
     my $len = int ( _log4 ( $fileSize / 1000000000 ) );
     open my $fileHandler , "<", $file;

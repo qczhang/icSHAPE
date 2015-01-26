@@ -7,8 +7,8 @@ use File::Basename;
 use Getopt::Std;
 use Scalar::Util qw(looks_like_number);
 
-use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_r $opt_m );
-&getopts('hVDi:o:r:m:');
+use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_r $opt_m $opt_c );
+&getopts('hVDi:o:r:m:c:');
 
 my $usage = <<_EOH_;
 ## --------------------------------------
@@ -23,6 +23,7 @@ $0 -i input_sam_file -o output_expression_file
 
 # more options:
  -r     reference transcript list (only transcripts in this list are considered)
+ -c     cutoff to output (defaut 0.1)
  -m     method ( not yet )
 
 _EOH_
@@ -55,7 +56,7 @@ sub main {
     elsif ( $parameters{method} eq "mle" ) {
     }
 
-    &output_rpkm ( $parameters{output}, \%transcript_len, \%transcript_uniqRead, \%transcript_multiRead, \%transcript_rpkm );
+    &output_rpkm ( $parameters{output}, $parameters{cutoff},  \%transcript_len, \%transcript_uniqRead, \%transcript_multiRead, \%transcript_rpkm );
     print STDERR "\nFinished calculating transcript abundance, check $parameters{output} for them in RPKM.\n"; 
 }
 
@@ -70,6 +71,7 @@ sub init {
     $parameters{input} = $opt_i;
     $parameters{output} = $opt_o;
     $parameters{method} = "even";
+    $parameters{cutoff} = ( defined $opt_c ) ? $opt_c : 0.1 ;
 
     return ( %parameters );
 }
@@ -180,12 +182,13 @@ sub calcRPKM  {
 }
 
 sub output_rpkm  {
-    my ( $outputFile, $ref_transcript_len, $ref_transcript_uniqRead, $ref_transcript_multiRead, $ref_transcript_rpkm ) = @_;
+    my ( $outputFile, $cutoff, $ref_transcript_len, $ref_transcript_uniqRead, $ref_transcript_multiRead, $ref_transcript_rpkm ) = @_;
     print STDERR "Output transcript abundance in RPKM to file $outputFile...\n\t", `date`;
     
     open ( OUT, ">>$outputFile" ) or die "Error opening $outputFile for writing transcript RPKM.\n";
     print OUT "#transcript\tlength\tunique_read_num\tmultiple_read_num\tRPKM\n";
     foreach my $tran ( sort { $ref_transcript_rpkm->{$b} <=> $ref_transcript_rpkm->{$a} } ( keys %{$ref_transcript_len} ) ) {
+        last if ( $ref_transcript_rpkm->{$tran} < $cutoff );
         print OUT $tran, "\t", $ref_transcript_len->{$tran}, "\t", $ref_transcript_uniqRead->{$tran}, "\t", $ref_transcript_multiRead->{$tran}, "\t", $ref_transcript_rpkm->{$tran}, "\n";
     }
     close OUT;

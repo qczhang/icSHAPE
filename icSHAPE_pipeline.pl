@@ -9,7 +9,7 @@ use warnings;
 use File::Basename;
 use Getopt::Std;
 
-my $_debug = 1;
+my $_debug = 0;
 my %config = ();
 
 use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_t $opt_o $opt_c );
@@ -37,83 +37,125 @@ _EOH_
 sub main
 {
     &init ();
-    foreach my $key ( keys %config ) { print $key, "\t", $config{$key}, "\n"; }
+    if ( $_debug ) { foreach my $key ( keys %config ) { print $key, "\t", $config{$key}, "\n"; }  }
 
     my $outDir = $config{outDir};
-    my @inputSeqFile = split ( /:/, $config{input} ); my @targetSeqFiles = split ( /:/, $config{target} );
+    my @inputSeqFiles = split ( /:/, $config{input} ); my @targetSeqFiles = split ( /:/, $config{target} );
     my @inputSignalFile = (); my @targetSignalFile = ();
-    foreach my $seqFile ( @inputSeqFile, @targetSeqFiles ) {
+    foreach my $seqFile ( @inputSeqFiles, @targetSeqFiles ) {
         my ($fileName, $fileDir, $fileSuffix) = fileparse ( $seqFile, qr/\.[^.]*/ ); 
         my $seqCollapsed = $outDir . "/" . $fileName . ".rmdup.fastq";
         my $seqDatFasta = $outDir . "/" . $fileName . ".fa";
-        print STDERR "$config{COLLAPSEBIN} -U $seqFile -o $seqCollapsed -f $seqDatFasta\n";
-#        print STDERR `$config{COLLAPSEBIN} -U $seqFile -o $seqCollapsed -f $seqDatFasta`;
-        if ( not $? ) {  print STDERR `touch $seqCollapsed.done`;  }
+        if ( not -e "$seqCollapsed.done" ) {
+            print STDERR "$config{COLLAPSEBIN} -U $seqFile -o $seqCollapsed -f $seqDatFasta\n";
+            print STDERR `$config{COLLAPSEBIN} -U $seqFile -o $seqCollapsed -f $seqDatFasta`;
+            if ( not $? ) {  print STDERR `touch $seqCollapsed.done`;  }
+        }
 
         my $seqTrimmed = $outDir . "/" . $fileName . ".trimmed.fastq";
-        print STDERR "$config{TRIMMER} -U $seqCollapsed -o $seqTrimmed -l $config{LEADINGTRIM} -t $config{TAILINGTRIM} -c $config{FASTQCODING} -a $config{ADAPTER}\n";
-#        print STDERR `$config{TRIMMER} -U $seqCollapsed -o $seqTrimmed -l $config{LEADINGTRIM} -t $config{TAILINGTRIM} -c $config{FASTQCODING} -a $config{ADAPTER}`;
-        if ( not $? ) {  print STDERR `touch $seqTrimmed.done; /bin/rm $seqCollapsed.done`;  }
+        if ( not -e "$seqTrimmed.done" ) {
+            print STDERR "$config{TRIMMER} -U $seqCollapsed -o $seqTrimmed -l $config{LEADINGTRIM} -t $config{TAILINGTRIM} -c $config{FASTQCODING} -a $config{ADAPTER} -m $config{TRIMMINLEN}\n";
+            print STDERR `$config{TRIMMER} -U $seqCollapsed -o $seqTrimmed -l $config{LEADINGTRIM} -t $config{TAILINGTRIM} -c $config{FASTQCODING} -a $config{ADAPTER} -m $config{TRIMMINLEN}`;
+            if ( not $? ) {  print STDERR `touch $seqTrimmed.done`;  }
+        }
 
         my $samFile = $outDir . "/" . $fileName . ".sam";
-        my $alignOptions = ""; 
-        $alignOptions .= "-" . $config{FASTQCODING} if ( defined $config{FASTQCODING} );
-        $alignOptions .= " " . $config{MAPPINGOPTIONS} if ( defined $config{MAPPINGOPTIONS} );
-        print STDERR "$config{ALIGNER} -U $seqTrimmed -o $samFile -x $config{MAPPINGREF} $alignOptions\n";
-#        print STDERR `$config{ALIGNER} -U $seqTrimmed -o $samFile -x $config{MAPPINGREF} $alignOptions`;
-        if ( not $? ) {  print STDERR `touch $samFile.done; /bin/rm $seqTrimmed.done`;  }
+        if ( not -e "$samFile.done" ) {
+            my $alignOptions = ""; 
+            $alignOptions .= "--" . $config{FASTQCODING} if ( defined $config{FASTQCODING} );
+            $alignOptions .= " " . $config{MAPPINGOPTIONS} if ( defined $config{MAPPINGOPTIONS} );
+            print STDERR "$config{ALIGNER} -U $seqTrimmed -S $samFile -x $config{MAPPINGREF} $alignOptions\n";
+            print STDERR `$config{ALIGNER} -U $seqTrimmed -S $samFile -x $config{MAPPINGREF} $alignOptions`;
+            if ( not $? ) {  print STDERR `touch $samFile.done`;  }
+        }
 
         my $rpkmFile = $outDir . "/" . $fileName . ".rpkm";
-        print STDERR "$config{ESTIMATERPKM} -i $samFile -o $rpkmFile\n";
-#        print STDERR `$config{ESTIMATERPKM} -i $samFile -o $rpkmFile`;
-        if ( not $? ) {  print STDERR `touch $rpkmFile.done; /bin/rm $samFile.done`;  }
+        if ( not -e "$rpkmFile.done" ) {
+            print STDERR "$config{ESTIMATERPKM} -i $samFile -o $rpkmFile\n";
+            print STDERR `$config{ESTIMATERPKM} -i $samFile -o $rpkmFile`;
+            if ( not $? ) {  print STDERR `touch $rpkmFile.done`;  }
+        }
 
         # my $seqSumFile = $outDir . "/" . $fileName . ".seq.info";
         # print STDERR "$config{seqSummary} -i $samFile -o $seqSumFile -r $rpkmFile\n";
         # print STDERR `$config{seqSummary} -i $samFile -o $seqSumFile -r $rpkmFile`;
 
         my $rtFile = $outDir . "/" . $fileName . ".rt";
-        print STDERR "$config{CALCRT} -i $samFile -o $rtFile -r $rpkmFile\n";
-#        print STDERR `$config{CALCRT} -i $samFile -o $rtFile -r $rpkmFile`;
-        if ( not $? ) {  print STDERR `touch $rtFile.done; /bin/rm $rpkmFile.done`;  }
-        push ( @inputSignalFile, $rtFile );
-        push ( @targetSignalFile, $rtFile );
+        if ( not -e "$rtFile.done" ) {
+            print STDERR "$config{CALCRT} -i $samFile -o $rtFile -r $rpkmFile -c $config{MINLOAD}\n";
+            print STDERR `$config{CALCRT} -i $samFile -o $rtFile -r $rpkmFile -c $config{MINLOAD}`;
+            if ( not $? ) {  print STDERR `touch $rtFile.done`;  }
+        }
+
+        push ( @inputSignalFile, $rtFile ) if grep { $_ eq $seqFile } @inputSeqFiles;
+        push ( @targetSignalFile, $rtFile ) if grep { $_ eq $seqFile } @targetSeqFiles;
     }
 
     my $combinedInputSignalFile = $outDir . "/background.rt";
-    my $normalizedInputSignalFile = $outDir . "/background.normalized.rt";
-    if ( scalar @inputSignalFile > 1 ) {
-        my $allInputSignalFile = "";
-        foreach my $signalFile ( @inputSignalFile ) { $allInputSignalFile .= $signalFile . ":"; }
-        $allInputSignalFile =~ s/:$//;
-        print STDERR "$config{COMBINEBIN} -a $allInputSignalFile -o $combinedInputSignalFile";
-#        print STDERR `$config{COMBINEBIN} -a $allInputSignalFile -o $combinedInputSignalFile`;
+    if ( not -e "$combinedInputSignalFile.done" ) {
+        if ( scalar @inputSignalFile > 1 ) {
+            my $allInputSignalFile = "";
+            foreach my $signalFile ( @inputSignalFile ) { $allInputSignalFile .= $signalFile . ":"; }
+            $allInputSignalFile =~ s/:$//;
+            print STDERR "$config{COMBINEBIN} -i $allInputSignalFile -o $combinedInputSignalFile";
+            print STDERR `$config{COMBINEBIN} -i $allInputSignalFile -o $combinedInputSignalFile`;
+        }
+        else { print STDERR `ln -s $inputSignalFile[0] $combinedInputSignalFile` }
+        if ( not $? ) {  print STDERR `touch $combinedInputSignalFile.done`; }
     }
-    else { print STDERR `ln -s $inputSignalFile[0] $combinedInputSignalFile` }
-    print STDERR "$config{NORMALIZEBIN} -i $combinedInputSignalFile -o $normalizedInputSignalFile -m $config{METHOD} -d $config{HEADTOSKIP} -l $config{TAILTOSKIP}\n";
-#    print STDERR `$config{NORMALIZEBIN} -i $combinedInputSignalFile -o $normalizedInputSignalFile -m $config{METHOD} -d $config{HEADTOSKIP} -l $config{TAILTOSKIP}`;
+
+    my $normalizedInputSignalFile = $outDir . "/background.normalized.rt";
+    if ( not -e "$normalizedInputSignalFile.done" ) {
+        print STDERR "$config{NORMALIZEBIN} -i $combinedInputSignalFile -o $normalizedInputSignalFile -m $config{METHOD} -d $config{HEADTOSKIP} -l $config{TAILTOSKIP}\n";
+        print STDERR `$config{NORMALIZEBIN} -i $combinedInputSignalFile -o $normalizedInputSignalFile -m $config{METHOD} -d $config{HEADTOSKIP} -l $config{TAILTOSKIP}`;
+        if ( not $? ) {  print STDERR `touch $normalizedInputSignalFile.done`; }
+    }
 
     my $combinedTargetSignalFile = $outDir . "/target.rt";
-    my $normalizedTargetSignalFile = $outDir . "/target.normalized.rt";
-    if ( scalar @targetSignalFile > 1 ) {
-        my $allTargetSignalFile = "";
-        foreach my $signalFile ( @targetSignalFile ) { $allTargetSignalFile .= $signalFile . ":"; }
-        $allTargetSignalFile =~ s/:$//;
-        print STDERR "$config{COMBINEBIN} -a $allTargetSignalFile -o $combinedTargetSignalFile";
-        #       print STDERR `$config{COMBINEBIN} -a $allTargetSignalFile -o $combinedTargetSignalFile`;
+    if ( not -e "$combinedTargetSignalFile.done" ) {
+        if ( scalar @targetSignalFile > 1 ) {
+            my $allTargetSignalFile = "";
+            foreach my $signalFile ( @targetSignalFile ) { $allTargetSignalFile .= $signalFile . ":"; }
+            $allTargetSignalFile =~ s/:$//;
+            print STDERR "$config{COMBINEBIN} -i $allTargetSignalFile -o $combinedTargetSignalFile";
+            print STDERR `$config{COMBINEBIN} -i $allTargetSignalFile -o $combinedTargetSignalFile`;
+        }
+        else { print STDERR `ln -s $targetSignalFile[0] $combinedTargetSignalFile` }
+        if ( not $? ) {  print STDERR `touch $combinedTargetSignalFile.done`; }
     }
-    else { print STDERR `ln -s $targetSignalFile[0] $combinedTargetSignalFile` }
-    print STDERR "$config{NORMALIZEBIN} -i $combinedTargetSignalFile -o $normalizedTargetSignalFile -m $config{METHOD} -d $config{HEADTOSKIP} -l $config{TAILTOSKIP}\n";
-#    print STDERR `$config{NORMALIZEBIN} -i $combinedTargetSignalFile -o $normalizedTargetSignalFile -m $config{METHOD} -d $config{HEADTOSKIP} -l $config{TAILTOSKIP}`;
+
+    my $normalizedTargetSignalFile = $outDir . "/target.normalized.rt";
+    if ( not -e "$normalizedTargetSignalFile.done" ) {
+        print STDERR "$config{NORMALIZEBIN} -i $combinedTargetSignalFile -o $normalizedTargetSignalFile -m $config{METHOD} -d $config{HEADTOSKIP} -l $config{TAILTOSKIP}\n";
+        print STDERR `$config{NORMALIZEBIN} -i $combinedTargetSignalFile -o $normalizedTargetSignalFile -m $config{METHOD} -d $config{HEADTOSKIP} -l $config{TAILTOSKIP}`;
+        if ( not $? ) {  print STDERR `touch $normalizedTargetSignalFile.done`; }
+    }
 
     ## calculate enrichment scores and filter valid ones
-    my $enrichFile = $outDir . "/icshape.out"; my $enrichAllFile = $outDir . "/icshape.tmp.out";
-    print STDERR "$config{CALCENRICHBIN} -f $normalizedTargetSignalFile -b $normalizedInputSignalFile -o $enrichAllFile -w $config{WINSOR} -x $config{DIVFACTOR} -y $config{SUBFACTOR}\n";
-#    print STDERR `$config{CALCENRICHBIN} -f $normalizedTargetSignalFile -b $normalizedInputSignalFile -o $enrichAllFile -w $config{WINSOR} -x $config{DIVFACTOR} -y $config{SUBFACTOR}`;
-    print STDERR "$config{FILTERENRICH} -a $enrichAllFile -o $enrichFile\n";
-#    print STDERR `$config{FILTERENRICH} -a $enrichAllFile -o $enrichFile`;
+    my $enrichAllFile = $outDir . "/icshape.tmp.out";
+    if ( not -e "$enrichAllFile.done" ) {
+        print STDERR "$config{CALCENRICHBIN} -f $normalizedTargetSignalFile -b $normalizedInputSignalFile -o $enrichAllFile -w $config{WINSOR} -x $config{DIVFACTOR} -y $config{SUBFACTOR}\n";
+        print STDERR `$config{CALCENRICHBIN} -f $normalizedTargetSignalFile -b $normalizedInputSignalFile -o $enrichAllFile -w $config{WINSOR} -x $config{DIVFACTOR} -y $config{SUBFACTOR}`;
+        if ( not $? ) {  print STDERR `touch $enrichAllFile.done`; }
+    }
+
+    my $enrichFile = $outDir . "/icshape.out";
+    if ( not -e "$enrichFile.done" ) {
+        print STDERR "$config{FILTERENRICH} -i $enrichAllFile -o $enrichFile -t $config{INPUTCOVERAGE} -T $config{TARGETHIT} -s $config{HEADTOSKIP} -e $config{TAILTOSKIP} \n";
+        print STDERR `$config{FILTERENRICH} -i $enrichAllFile -o $enrichFile -t $config{INPUTCOVERAGE} -T $config{TARGETHIT} -s $config{HEADTOSKIP} -e $config{TAILTOSKIP}`;
+        if ( not $? ) {  print STDERR `touch $enrichFile.done`; }
+    }
 
     ## generateTrack
+    my $enrichBedgraph = $outDir . "/icshape.bedgraph";
+    my $enrichBw = $outDir . "/icshape.bw";
+    print STDERR "$config{SHAPE2BEDGRAPH} -i $enrichAllFile -o $enrichBedgraph\n";
+    print STDERR "$config{bedGraphToBigWig} $enrichBedgraph $config{GENOMESIZE} $enrichBw";
+    #enrich2Bedgraph.pl LIB_NAI-LIB_DMSO.PolyA.invivo.valid.enrich > LIB_NAI-LIB_DMSO.PolyA.invivo.bedgraph
+    #sort -k1,1 -k2,3n LIB_NAI-LIB_DMSO.PolyA.invivo.bedgraph -o LIB_NAI-LIB_DMSO.PolyA.invivo.sorted.bedgraph
+    #uniqueTrack.pl LIB_NAI-LIB_DMSO.PolyA.invivo.sorted.bedgraph LIB_NAI-LIB_DMSO.PolyA.invivo.sorted.uniq.bedgraph
+    #cut -f1-4 LIB_NAI-LIB_DMSO.PolyA.invivo.sorted.uniq.bedgraph | grep -v NULL > LIB_NAI-LIB_DMSO.PolyA.invivo.sim.bedgraph
+    #bedGraphToBigWig LIB_NAI-LIB_DMSO.PolyA.invivo.sim.bedgraph ~/database/ensembl/current/mouse/dna/genome.sm.chr.size LIB_NAI-LIB_DMSO.PolyA.invivo.sim.bw
 
     1;
 }

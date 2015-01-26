@@ -12,10 +12,10 @@ use Getopt::Std;
 use FindBin;
 
 my $trimmomatic = "$FindBin::Bin/../bin/trimmomatic-0.30.jar";
-my $simpletrim = "$FindBin::Bin/../bin/simpleTrim";
+my $simpleTrim = "$FindBin::Bin/../bin/simpleTrim";
 
-use vars qw ($opt_h $opt_V $opt_D $opt_U $opt_1 $opt_2 $opt_o $opt_p $opt_q $opt_a $opt_l $opt_t $opt_c );
-&getopts('hVDU:1:2:o:p:q:a:l:t:c:');
+use vars qw ($opt_h $opt_V $opt_D $opt_U $opt_1 $opt_2 $opt_o $opt_p $opt_q $opt_a $opt_l $opt_t $opt_c $opt_m );
+&getopts('hVDU:1:2:o:p:q:a:l:t:c:m:');
 
 my $usage = <<_EOH_;
 ## --------------------------------------
@@ -34,11 +34,11 @@ $0 -1 fastq_PE_reads_1 -2 fastq_PE_reads_2 -U fastq_SE_reads
  -p     PE read output 1
  -q     PE read output 2
 
+ -c     fastq coding
  -a     adapter sequences
-
  -l     crop of leading nucleotides
  -t     crop of tailing nucleotides
- -c     fastq coding
+ -m     min length
 
 _EOH_
 ;
@@ -49,23 +49,34 @@ sub main {
     my %parameters = &init();
 
     my $inFile = $parameters{input1}; my $outFile = $parameters{output1};
-    my $cmd = "$parameters{java} -jar $trimmomatic ";
     if ( not $parameters{isPairEnds} )  {
         print STDERR "Trimming file SE reads $inFile...\n\t", `date`;
-        if ( -e $parameters{output1} ) { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
-        $cmd .= "SE -$parameters{coding} $trimlog $parameters{input1} $parameters{output1} $parameters{output1}.unpaired $options";
+        if ( -e $parameters{output1} ) 
+            { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
+
+        print STDERR "$simpleTrim -U $inFile -o $outFile.tmp -d $parameters{leading} -m $parameters{minLength}\n";
+#        print STDERR `$simpleTrim -U $inFile -o $outFile.tmp -d $parameters{leading} -m $parameters{minLength}`;
+#        if ( $? ) { die "Error in removing leading nucleotides for file $inFile!\n"; }
+
+        print STDERR "java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $outFile.tmp $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}\n";
+        print STDERR `java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $outFile.tmp $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}`;
+        if ( $? ) { die "Error in running trimmomatic for file $inFile!\n"; }
     }
     else {
         print STDERR "Trimming file PE reads $parameters{input1} and $parameters{input2}...\n\t", `date`;
-        if ( -e $parameters{output1} ) { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
-        if ( -e $parameters{output2} ) { print STDERR "Warning! $parameters{output2} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output2}`; }
-        $inFile = "/tmp/tmp" . $$ . ".fastq"; $outFile = "/tmp/tmpOut" . $$ . ".fastq";
-        _mergePairEndReads ( $parameters{input1}, $parameters{input2}, $inFile );
+        if ( -e $parameters{output1} ) 
+            { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
+        if ( -e $parameters{output2} ) 
+            { print STDERR "Warning! $parameters{output2} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output2}`; }
 
-        $cmd = "PE -$parameters{coding} $trimlog $parameters{input1} $parameters{input2} $parameters{output1} $parameters{output1}.unpaired $parameters{output2}.unpaired $options";
+#        print STDERR `$simpleTrim -1 $parameters{input1} -2 $parameters{in}put2} -p $parameters{output1}.tmp -q $parameters{output2}.tmp -d $parameters{leading} -m $parameters{minLength}`;
+#        if ( $? ) { die "Error in removing leading nucleotides for file $inFile!\n"; }
+
+        print STDERR "java -mx512m -jar $trimmomatic PE -$parameters{coding} -trimlog  $parameters{trimlog} $parameters{output1}.tmp $parameters{output2}.tmp $parameters{output1} $parameters{output1}.unpaired $parameters{output2} $parameters{output2}.unpaired ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}\n";
+        print STDERR `java -mx512m -jar $trimmomatic PE -$parameters{coding} -trimlog  $parameters{trimlog} $parameters{output1}.tmp $parameters{output2}.tmp $parameters{output1} $parameters{output1}.unpaired $parameters{output2} $parameters{output2}.unpaired ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}`;
+        if ( $? ) { die "Error in running trimmomatic for file $inFile!\n"; }
     }
 
-    system ( "$cmd" );
     1;
 }
 
@@ -82,6 +93,7 @@ sub init {
         my ($fileName, $fileDir, $fileSuffix) = fileparse($parameters{input1}, qr/\.[^.]*/);
         if ( defined $opt_o ) { $parameters{output1} = $opt_o; }
         else { $parameters{output1} = $pwd . "/" . $fileName . ".trimmed" . $fileSuffix; }
+        $parameters{trimlog} = $parameters{output1}. ".trimlog";
         $parameters{isPairEnds} = 0;
     }
     elsif ( defined $opt_1 && defined $opt_2 )  {
@@ -96,14 +108,16 @@ sub init {
         else { $parameters{output2} = $pwd . "/" . $fileName2 . ".trimmed" . $fileSuffix2; }
 
         die "Error! Paired ends reads should have different names.\n" if ( $fileName1 eq $fileName2 );
+        $parameters{trimlog} = $parameters{output1}. ".trimlog";
         $parameters{isPairEnds} = 1;
     }
     else { die $usage; }
 
+    if ( defined $opt_c ) { $parameters{coding} = $opt_c; }
     if ( defined $opt_a ) { $parameters{adapter} = $opt_a; }
     if ( defined $opt_l ) { $parameters{leading} = $opt_l; }
     if ( defined $opt_t ) { $parameters{tailing} = $opt_t; }
-    if ( defined $opt_c ) { $parameters{coding} = $opt_c; }
+    if ( defined $opt_m ) { $parameters{minLength} = $opt_m; }
 
     return ( %parameters );
 }

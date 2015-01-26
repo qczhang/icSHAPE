@@ -10,12 +10,8 @@ use warnings;
 use File::Basename;
 use Getopt::Std;
 
-use lib qw "/home/qczhang/lib/perllib";
-use Data::Dumper;
-use Locale::Schedule::Simple qw( &waitForFile &finishTag );
-
-use vars qw ($opt_h $opt_V $opt_D $opt_U $opt_1 $opt_2 $opt_O $opt_p $opt_q $opt_d $opt_l $opt_m $opt_A $opt_C $opt_R $opt_T $opt_S );
-&getopts('hVD1:2:U:O:p:q:d:l:m:A:C:R:T:S:');
+use vars qw ($opt_h $opt_V $opt_D $opt_U $opt_1 $opt_2 $opt_o $opt_p $opt_q $opt_d $opt_l $opt_m );
+&getopts('hVD1:2:U:o:p:q:d:l:m:');
 
 my $usage = <<_EOH_;
 ## --------------------------------------
@@ -30,19 +26,13 @@ $0 -1 fastq_PE_reads_1 -2 fastq_PE_reads_2 -U fastq_SE_reads
  -2     paired ends read 2
 
 # more options:
- -O     single ends read output 
+ -o     single ends read output 
  -p     PE read output 1
  -q     PE read output 2
 
  -d     head crop
  -l     tail crop
  -m     min length
-
- -C     use a tag file as the agent in checking the availability of the input file
- -R     use a tag file to mark the output file ready for use
- -A     use a tag to check whether the splited fastq file is ready to use
- -T     time out
- -S     every time sleep
 
 _EOH_
 ;
@@ -53,18 +43,13 @@ sub main {
     my %parameters = &init();
 
     my $inFile = $parameters{input1};
-    my $inFileStatus = waitForFile ( $inFile, $parameters{waitForTag}, $parameters{sleepTime}, $parameters{timeout} );
-    die "Error! $inFile not available for reading.\n" if ( $inFileStatus != 1 );
     if ( -e $parameters{output1} ) { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
 
     my $totalReads = 0;  my $survivalReads = 0;
     if ( not $parameters{isPairEnds} )  {
         ( $totalReads, $survivalReads ) = simpleTrimSE ( $inFile, $parameters{output1}, $parameters{HEADCROP}, $parameters{TAILCROP}, $parameters{MINLEN} );
-        finishTag ( $parameters{output1}, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} ); 
     }
     else {
-        $inFileStatus = waitForFile ( $parameters{input2}, $parameters{waitForTag}, $parameters{sleepTime}, $parameters{timeout} );
-        die "Error! $parameters{input2} not available for reading.\n" if ( $inFileStatus != 1 );
         if ( -e $parameters{output2} ) { print STDERR "Warning! $parameters{output2} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output2}`; }
 
         $inFile = "/tmp/tmp" . $$ . ".fastq";
@@ -72,12 +57,7 @@ sub main {
 
         ( $totalReads, $survivalReads ) = simpleTrimPE ( $inFile, $parameters{output1}, $parameters{output2}, $parameters{HEADCROP}, $parameters{TAILCROP}, $parameters{MINLEN} );
         print STDERR `/bin/rm -f $inFile`;
-
-        finishTag ( $parameters{output1}, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} );
-        finishTag ( $parameters{output2}, $parameters{waitForTag} ) if ( defined $parameters{waitForTag} );
     }
-
-    finishTag ( $parameters{readyForUse} ) if ( defined $parameters{readyForUse} );
 
     my $survivalRatio = sprintf ( "%.2f", $survivalReads/$totalReads );
     print "Read trimming successful! Total count: $totalReads, survival count: $survivalReads, survival ratio: $survivalRatio.\n";
@@ -100,7 +80,7 @@ sub init {
     if ( defined $opt_U ) {
         $parameters{input1} = $opt_U;
         my ($fileName, $fileDir, $fileSuffix) = fileparse($parameters{input1}, qr/\.[^.]*/);
-        if ( defined $opt_O ) { $parameters{output1} = $opt_O; }
+        if ( defined $opt_o ) { $parameters{output1} = $opt_o; }
         else { $parameters{output1} = $pwd . "/" . $fileName . ".trimmed" . $fileSuffix; }
 
         $parameters{isPairEnds} = 0;
@@ -128,14 +108,6 @@ sub init {
     if ( defined $opt_m ) { $parameters{MINLEN} = $opt_m; }
     else { $parameters{MINLEN} = 0; }
 
-    if ( defined $opt_C ) { $parameters{checkForAvailability} = $opt_C; }
-    if ( defined $opt_R ) { $parameters{readyForUse} = $opt_R; }
-    if ( defined $opt_A ) { $parameters{waitForTag} = $opt_A; }
-    if ( defined $opt_T ) { $parameters{timeout} = $opt_T; }
-    if ( defined $opt_S ) { $parameters{sleepTime} = $opt_S; }
-    else { $parameters{sleepTime} = 600; }
-
-    print Dumper \%parameters if ( $opt_D );
     return ( %parameters );
 }
 
