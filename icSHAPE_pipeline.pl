@@ -158,10 +158,10 @@ sub main
     if ( not -e "$icShapeFile.done" ) { die "Abort! icSHAPE pipeline die of unsuccessful icSHAPE score filtering.\n"; }
 
     ## generateTrack
-    my $icShapeBedgraph = $outDir . "/icshape.bedgraph";
-    my $icShapeBw = $outDir . "/icshape.bw";
-    print STDERR "$config{SHAPE2BEDGRAPH} -i $icShapeAllFile -o $icShapeBedgraph\n";
-    print STDERR "$config{bedGraphToBigWig} $icShapeBedgraph $config{GENOMESIZE} $icShapeBw";
+    #my $icShapeBedgraph = $outDir . "/icshape.bedgraph";
+    #my $icShapeBw = $outDir . "/icshape.bw";
+    #print STDERR "$config{SHAPE2BEDGRAPH} -i $icShapeAllFile -o $icShapeBedgraph\n";
+    #print STDERR "$config{bedGraphToBigWig} $icShapeBedgraph $config{GENOMESIZE} $icShapeBw";
     #enrich2Bedgraph.pl LIB_NAI-LIB_DMSO.PolyA.invivo.valid.enrich > LIB_NAI-LIB_DMSO.PolyA.invivo.bedgraph
     #sort -k1,1 -k2,3n LIB_NAI-LIB_DMSO.PolyA.invivo.bedgraph -o LIB_NAI-LIB_DMSO.PolyA.invivo.sorted.bedgraph
     #uniqueTrack.pl LIB_NAI-LIB_DMSO.PolyA.invivo.sorted.bedgraph LIB_NAI-LIB_DMSO.PolyA.invivo.sorted.uniq.bedgraph
