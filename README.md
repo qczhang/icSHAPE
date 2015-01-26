@@ -90,9 +90,9 @@ Possible additional steps:
     scripts and programs to use: scripts/splitFastq.pl
     SYNOPSIS
     paired-ends reads:
-    perl scripts/splitFastq.pl -1 fastq_PE_reads_1 -2 fastq_PE_reads_2 -l barcode1:lib_name1::barcode2:lib_name2 -b barcode_position:barcode_length
+    perl scripts/splitFastq.pl -1 fastq_PE_reads_1 -2 fastq_PE_reads_2 -l barcode1:lib_name1::barcode2:lib_name2 -b barcode_position:barcode_length -o output_directory
     single-ends reads:
-    perl scripts/splitFastq.pl -U fastq_SE_reads -l barcode1:lib_name1::barcode2:lib_name2 -b barcode_position:barcode_length
+    perl scripts/splitFastq.pl -U fastq_SE_reads -l barcode1:lib_name1::barcode2:lib_name2 -b barcode_position:barcode_length -o output_directory
 
 
 
