@@ -168,6 +168,7 @@ sub main
     #cut -f1-4 LIB_NAI-LIB_DMSO.PolyA.invivo.sorted.uniq.bedgraph | grep -v NULL > LIB_NAI-LIB_DMSO.PolyA.invivo.sim.bedgraph
     #bedGraphToBigWig LIB_NAI-LIB_DMSO.PolyA.invivo.sim.bedgraph ~/database/ensembl/current/mouse/dna/genome.sm.chr.size LIB_NAI-LIB_DMSO.PolyA.invivo.sim.bw
 
+    print STDERR "icSHAPE pipeline finished successfully!\n...check $icShapeFile for output icSHAPE scores.\n\t", `date`;
     1;
 }
 
