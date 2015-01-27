@@ -71,12 +71,14 @@ sub main {
         }
     }
 
-    foreach my $lib ( keys %{$parameters{library}} ) {
-        my $outFile = $parameters{outDirectory} . "/" . $lib . ".fastq"; ##print $outFile, "\n";
-        my $outFile1 = $parameters{outDirectory} . "/r1." . $lib . ".fastq";
-        my $outFile2 = $parameters{outDirectory} . "/r2." . $lib . ".fastq";
-        _splitPairEndReads ( $outFile, $outFile1, $outFile2 );
-        print STDERR `/bin/rm -f $outFile`;
+    if ( $parameters{isPairEnds} )  {
+        foreach my $lib ( keys %{$parameters{library}} ) {
+            my $outFile = $parameters{outDirectory} . "/" . $lib . ".fastq"; ##print $outFile, "\n";
+            my $outFile1 = $parameters{outDirectory} . "/r1." . $lib . ".fastq";
+            my $outFile2 = $parameters{outDirectory} . "/r2." . $lib . ".fastq";
+            _splitPairEndReads ( $outFile, $outFile1, $outFile2 );
+            print STDERR `/bin/rm -f $outFile`;
+        }
     }
 
     my $statFile = $parameters{outDirectory} . "/splitFastq.stat";

@@ -48,33 +48,44 @@ _EOH_
 sub main {
     my %parameters = &init();
 
-    my $inFile = $parameters{input1}; my $outFile = $parameters{output1};
+    my $inFile1 = $parameters{input1};
     if ( not $parameters{isPairEnds} )  {
-        print STDERR "Trimming file SE reads $inFile...\n\t", `date`;
+        print STDERR "Trimming file SE reads $inFile1...\n\t", `date`;
         if ( -e $parameters{output1} ) 
             { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
 
-        print STDERR "$simpleTrim -U $inFile -o $outFile.tmp -d $parameters{leading} -m $parameters{minLength}\n";
-        print STDERR `$simpleTrim -U $inFile -o $outFile.tmp -d $parameters{leading} -m $parameters{minLength}`;
-        if ( $? ) { die "Error in removing leading nucleotides for file $inFile!\n"; }
+        if ( ( defined $parameters{leading} ) and ( $parameters{leading} > 0 ) ) {
+            print STDERR "$simpleTrim -U $inFile1 -o $parameters{output1}.tmp -d $parameters{leading} -m $parameters{minLength}\n";
+            print STDERR `$simpleTrim -U $inFile1 -o $parameters{output1}.tmp -d $parameters{leading} -m $parameters{minLength}`;
+            if ( $? ) { die "Error in removing leading nucleotides for file $inFile1!\n"; }
 
-        print STDERR "java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $outFile.tmp $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}\n";
-        print STDERR `java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $outFile.tmp $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}`;
-        if ( $? ) { die "Error in running trimmomatic for file $inFile!\n"; }
+            $inFile1 = $parameters{output1} . ".tmp";
+        }
+
+        print STDERR "java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $inFile1 $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}\n";
+        print STDERR `java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $inFile1 $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}`;
+        if ( $? ) { die "Error in running trimmomatic for file $inFile1!\n"; }
     }
     else {
+        my $inFile2 = $parameters{input2};
         print STDERR "Trimming file PE reads $parameters{input1} and $parameters{input2}...\n\t", `date`;
         if ( -e $parameters{output1} ) 
             { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
         if ( -e $parameters{output2} ) 
             { print STDERR "Warning! $parameters{output2} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output2}`; }
 
-        print STDERR `$simpleTrim -1 $parameters{input1} -2 $parameters{in}put2} -p $parameters{output1}.tmp -q $parameters{output2}.tmp -d $parameters{leading} -m $parameters{minLength}`;
-        if ( $? ) { die "Error in removing leading nucleotides for file $inFile!\n"; }
+        if ( ( defined $parameters{leading} ) and ( $parameters{leading} > 0 ) ) {
+            print STDERR "$simpleTrim -1 $parameters{input1} -2 $parameters{input2} -p $parameters{output1}.tmp -q $parameters{output2}.tmp -d $parameters{leading} -m $parameters{minLength}\n";
+            print STDERR `$simpleTrim -1 $parameters{input1} -2 $parameters{input2} -p $parameters{output1}.tmp -q $parameters{output2}.tmp -d $parameters{leading} -m $parameters{minLength}`;
+            if ( $? ) { die "Error in removing leading nucleotides for file $inFile1 and $inFile2!\n"; }
 
-        print STDERR "java -mx512m -jar $trimmomatic PE -$parameters{coding} -trimlog  $parameters{trimlog} $parameters{output1}.tmp $parameters{output2}.tmp $parameters{output1} $parameters{output1}.unpaired $parameters{output2} $parameters{output2}.unpaired ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}\n";
-        print STDERR `java -mx512m -jar $trimmomatic PE -$parameters{coding} -trimlog  $parameters{trimlog} $parameters{output1}.tmp $parameters{output2}.tmp $parameters{output1} $parameters{output1}.unpaired $parameters{output2} $parameters{output2}.unpaired ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}`;
-        if ( $? ) { die "Error in running trimmomatic for file $inFile!\n"; }
+            $inFile1 = $parameters{output1} . ".tmp";
+            $inFile2 = $parameters{output2} . ".tmp";
+        }
+
+        print STDERR "java -mx512m -jar $trimmomatic PE -$parameters{coding} -trimlog  $parameters{trimlog} $inFile1 $inFile2 $parameters{output1} $parameters{output1}.unpaired $parameters{output2} $parameters{output2}.unpaired ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}\n";
+        print STDERR `java -mx512m -jar $trimmomatic PE -$parameters{coding} -trimlog  $parameters{trimlog} $inFile1 $inFile2 $parameters{output1} $parameters{output1}.unpaired $parameters{output2} $parameters{output2}.unpaired ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}`;
+        if ( $? ) { die "Error in running trimmomatic for file $inFile1 and $inFile2!\n"; }
     }
 
     1;
