@@ -62,15 +62,17 @@ sub main {
             $inFile1 = $parameters{output1} . ".tmp";
         }
 
-        print STDERR "java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $inFile1 $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}\n";
-        print STDERR `java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $inFile1 $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}`;
-        if ( $? ) { die "Error in running trimmomatic for file $inFile1!\n"; }
+        if ( defined $parameters{adapter} ) {
+            print STDERR "java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $inFile1 $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}\n";
+            print STDERR `java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $inFile1 $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}`;
+            if ( $? ) { die "Error in running trimmomatic for file $inFile1!\n"; }
+        }
     }
     else {
         my $inFile2 = $parameters{input2};
         print STDERR "Trimming file PE reads $parameters{input1} and $parameters{input2}...\n\t", `date`;
         if ( -e $parameters{output1} ) 
-            { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
+        { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
         if ( -e $parameters{output2} ) 
             { print STDERR "Warning! $parameters{output2} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output2}`; }
 
@@ -83,9 +85,11 @@ sub main {
             $inFile2 = $parameters{output2} . ".tmp";
         }
 
-        print STDERR "java -mx512m -jar $trimmomatic PE -$parameters{coding} -trimlog  $parameters{trimlog} $inFile1 $inFile2 $parameters{output1} $parameters{output1}.unpaired $parameters{output2} $parameters{output2}.unpaired ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}\n";
-        print STDERR `java -mx512m -jar $trimmomatic PE -$parameters{coding} -trimlog  $parameters{trimlog} $inFile1 $inFile2 $parameters{output1} $parameters{output1}.unpaired $parameters{output2} $parameters{output2}.unpaired ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}`;
-        if ( $? ) { die "Error in running trimmomatic for file $inFile1 and $inFile2!\n"; }
+        if ( defined $parameters{adapter} ) {
+            print STDERR "java -mx512m -jar $trimmomatic PE -$parameters{coding} -trimlog  $parameters{trimlog} $inFile1 $inFile2 $parameters{output1} $parameters{output1}.unpaired $parameters{output2} $parameters{output2}.unpaired ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}\n";
+            print STDERR `java -mx512m -jar $trimmomatic PE -$parameters{coding} -trimlog  $parameters{trimlog} $inFile1 $inFile2 $parameters{output1} $parameters{output1}.unpaired $parameters{output2} $parameters{output2}.unpaired ILLUMINACLIP:$parameters{adapter}:2:30:10 TRAILING:20 MINLEN:$parameters{minLength}`;
+            if ( $? ) { die "Error in running trimmomatic for file $inFile1 and $inFile2!\n"; }
+        }
     }
 
     1;
@@ -125,6 +129,7 @@ sub init {
     else { die $usage; }
 
     if ( defined $opt_c ) { $parameters{coding} = $opt_c; }
+    else { $parameters{coding} = "phred33"; }
     if ( defined $opt_a ) { $parameters{adapter} = $opt_a; }
     if ( defined $opt_l ) { $parameters{leading} = $opt_l; }
     if ( defined $opt_t ) { $parameters{tailing} = $opt_t; }
