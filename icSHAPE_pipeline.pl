@@ -105,7 +105,7 @@ sub main
             print STDERR "$config{COMBINEBIN} -i $allInputSignalFile -o $combinedInputSignalFile";
             print STDERR `$config{COMBINEBIN} -i $allInputSignalFile -o $combinedInputSignalFile`;
         }
-        else { print STDERR `ln -s $inputSignalFile[0] $combinedInputSignalFile` }
+        else { $combinedInputSignalFile = $inputSignalFile[0]; }
         if ( not $? ) {  print STDERR `touch $combinedInputSignalFile.done`; }
     }
     if ( not -e "$combinedInputSignalFile.done" ) { die "Abort! icSHAPE pipeline die of unsuccessful replicate combining.\n"; }
@@ -127,7 +127,7 @@ sub main
             print STDERR "$config{COMBINEBIN} -i $allTargetSignalFile -o $combinedTargetSignalFile";
             print STDERR `$config{COMBINEBIN} -i $allTargetSignalFile -o $combinedTargetSignalFile`;
         }
-        else { print STDERR `ln -s $targetSignalFile[0] $combinedTargetSignalFile` }
+        else { $combinedTargetSignalFile = $targetSignalFile[0]; }
         if ( not $? ) {  print STDERR `touch $combinedTargetSignalFile.done`; }
     }
     if ( not -e "$combinedTargetSignalFile.done" ) { die "Abort! icSHAPE pipeline die of unsuccessful replicate combining.\n"; }
