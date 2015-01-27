@@ -179,8 +179,13 @@ sub init
     $opt_D = 0 if ( not defined $opt_D );
 
     ## looking for default config
-    my $configFile = ".config";
+    my $configFile = "";
     if ( defined $opt_c ) { $configFile = $opt_c; }
+    else {
+        $configFile = ".config";
+        if ( not -e $configFile ) { if ( defined $ENV{"ICSHAPE"} ) { $configFile = $ENV{"ICSHAPE"} . "/.config"; } }
+    }
+
     &config_pipeline ( $configFile );
 
     $config{input} = $opt_i;
@@ -199,12 +204,6 @@ sub init
 sub config_pipeline
 {
     my $configFile = shift;
-
-    if ( not defined $configFile ) {
-        ## search for configuration file
-        if ( -e ".config" ) { $configFile = ".config"; }
-        elsif ( ( defined $ENV{"ICSHAPECONFIG"} ) and ( -e $ENV{"ICSHAPECONFIG"} ) ) { $configFile = $ENV{"ICSHAPECONFIG"}; }
-    }
 
     open ( CONFIG, $configFile ) or ( die "Cannot configure pipeline to run!\n" );
     while ( my $line = <CONFIG> ) {
