@@ -143,8 +143,8 @@ sub main
     ## calculate icSHAPE enrichment scores and filter for valid ones
     my $icShapeAllFile = $outDir . "/icshape.tmp.out";
     if ( not -e "$icShapeAllFile.done" ) {
-        print STDERR "$config{CALCENRICHBIN} -f $normalizedTargetSignalFile -b $normalizedInputSignalFile -o $icShapeAllFile -w $config{WINSOR} -x $config{DIVFACTOR} -y $config{SUBFACTOR}\n";
-        print STDERR `$config{CALCENRICHBIN} -f $normalizedTargetSignalFile -b $normalizedInputSignalFile -o $icShapeAllFile -w $config{WINSOR} -x $config{DIVFACTOR} -y $config{SUBFACTOR}`;
+        print STDERR "$config{CALCENRICHBIN} -f $normalizedTargetSignalFile -b $normalizedInputSignalFile -o $icShapeAllFile -w $config{WINSOR} -y $config{DIVFACTOR} -x $config{SUBFACTOR}\n";
+        print STDERR `$config{CALCENRICHBIN} -f $normalizedTargetSignalFile -b $normalizedInputSignalFile -o $icShapeAllFile -w $config{WINSOR} -y $config{DIVFACTOR} -x $config{SUBFACTOR}`;
         if ( not $? ) {  print STDERR `touch $icShapeAllFile.done`; }
     }
     if ( not -e "$icShapeAllFile.done" ) { die "Abort! icSHAPE pipeline die of unsuccessful icSHAPE score calculation.\n"; }
