@@ -7,8 +7,8 @@ use lib "$ENV{ICSHAPE}/module";
 use Getopt::Std;
 use icSHAPEutil qw( &readGTF &getBioType &get5primeLen &get3primeLen &getExonLen );
 
-use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_t $opt_p $opt_g $opt_f );
-&getopts('hVDi:t:o:p:g:f:');
+use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_t $opt_p $opt_g $opt_f $opt_c );
+&getopts('hVDi:t:o:p:g:f:c:');
 
 my $usage = <<_EOH_;
 ## --------------------------------------
@@ -18,16 +18,23 @@ Command:
 $0 -i transcript_profile -t heatmap_file -o metagene_profile 
 
 # what it is:
- -i     profile for every transcript
- -o     profile of meta gene
+ -i     profile for every transcript, in the format of:
+        transcript_ID  [more info] position1_data  position2_data  ...
 
- -t     heatmap for every transcript
+ -o     profile of meta gene
+        if running in mode -p(position file), metagene is calculated in the range of -50..50; if in the mode of -g(gene annotations), metagene is calculated for all protein coding genes in the range of -50..TSS..+100,-100..TES..+50
+
+ -t     heatmap of all transcripts
 
 # more options:
- -p     position file
+ -p     position file (in the format of:
+        transcript_ID   position
+        ...
 
- -g     gtf file 
+ -g     gtf annotation file (annotations from ensembl are suggested)
  -f     gtf file format (default: ensembl)
+
+ -c     specify the first column in the input transcript profile. Default is 2, which means the profile data for that transcript starts from column 2. But sometimes, you may include other information in starting columns and your real profile starts from later columns - tell the script using this option.
 
 _EOH_
 ;
@@ -40,6 +47,7 @@ sub main {
     my $transcriptFile = $parameters{transcriptFile};
     my $heatmapFile = $parameters{heatmapFile};
     my $metageneFile = $parameters{metageneFile};
+    my $profileCol = $parameters{profileCol};
 
     my $ref_position = undef;
     my $ref_annotation = undef;
@@ -63,7 +71,8 @@ sub main {
         $lineCount++; #last if ( $lineCount > 10 );
 
         chomp $line;
-        my ( $transID, @profile ) = split ( /\s/, $line );
+        my ( $transID, @data ) = split ( /\s/, $line );
+        my @profile = @data[$profileCol..$#data];
         my $biotypeString = getBioType ( $transID, $ref_annotation );
 
         if ( defined $parameters{positionFile} ) {
@@ -104,6 +113,11 @@ sub init
     if ( defined $opt_g ) { $parameters{gtfFile} = $opt_g; }
     if ( defined $opt_f ) { $parameters{gtfSource} = $opt_f; }
     else { $parameters{gtfSource} = "ensembl"; }
+    if ( defined $opt_c ) { 
+        die "Column out of range!\n" if ( $opt_c < 2 );
+        $parameters{profileCol} = $opt_c - 1; 
+    }
+    else { $parameters{profileCol} = 1; }
 
     return ( %parameters );
 }
