@@ -6,9 +6,6 @@ use lib "$ENV{ICSHAPE}/module";
 use Getopt::Std;
 use icSHAPEutil qw( &readGTF_ensembl_new );
 
-use lib "/home/qczhang/lib/perllib/";
-use Data::Dumper;
-
 use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_a $opt_f $opt_b $opt_s );
 &getopts('hVDi:a:o:f:b:s');
 
