@@ -11,7 +11,7 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK );
 
 our $VERSION     = '0.01';
 our @EXPORT      = ();
-our @EXPORT_OK   = qw( readFasta extractFasta readBED readGTF readGenomeSize getExonLen get5primeLen get3primeLen getBioType );
+our @EXPORT_OK   = qw( readFasta extractFasta readBED readGTF readGTF_ensembl_new readGenomeSize getExonLen get5primeLen get3primeLen getBioType );
 
 sub readBED {
     my %parameters = @_;
@@ -88,6 +88,122 @@ sub extractFasta
     }
 
     return $frag;
+}
+
+sub readGTF_ensembl_new {
+    my $gtfFile = shift;
+    my %parameters = @_;
+
+    my %chr_size = (); my %gene_info = (); my %transcript_info = (); my %exon_info = ();
+
+    my $lineCount = 0;
+    open ( GTF, $gtfFile ) or die ( "Error in reading GTF file $gtfFile!\n" );
+    print STDERR "read genomic annotations from file: $gtfFile\n\t", `date` if ( $parameters{verbose} );
+    my $geneID = "";  my $transcriptID = "";  my $exonID = "";  my $exonNum = 0;
+    while ( my $line = <GTF> ) {
+        next if ( $line =~ /^#/ ); chomp $line;
+        $lineCount++; print STDERR "  line: $lineCount\n" if ( ( $parameters{verbose} ) and ( $lineCount % 100000 == 0 ) );
+
+        # 1     nonsense_mediated_decay     stop_codon      4782680     4782682     .       -       0       
+        # gene_id "ENSMUSG00000033845"; transcript_id "ENSMUST00000045689"; exon_number "2"; 
+        # gene_name "Mrpl15"; gene_biotype "protein_coding"; transcript_name "Mrpl15-003";
+        # exon_id ...
+        ## this is the statistics of feature field of mouse.74.gtf (in total 1242614 lines):
+        #   432247 CDS
+        #   628052 exon
+        #    41170 start_codon
+        #    41145 stop_codon
+        ## this is the statistics of attribute field of mouse.74.gtf (in total 1242614 lines):
+        #  1142614 gene_id
+        #  1142614 gene_name
+        #  1142614 gene_biotype
+        #  1142614 transcript_id
+        #  1142614 transcript_name
+        #  1142614 exon_number
+        #   628052 exon_id
+        #   432247 protein_id
+        my ( $chr, $class, $feature, $start, $end, $score, $strand, $frame, $attribute ) = split ( /\t/, $line );
+        my @data = split ( /; /, $attribute );
+        foreach my $field ( @data ) {
+            my $index = index ( $field, " " );
+            next if ( $index <= 0 );
+            my $type = substr ( $field, 0, $index ); 
+            if ( $type eq "gene_id" ) { $geneID = substr ( $field, $index+2, -1 ); }
+            elsif ( $type eq "transcript_id" ) { $transcriptID = substr ( $field, $index+2, -1 ); }
+            elsif ( $type eq "exon_id" ) { $exonID = substr ( $field, $index+2, -1 ); }
+            elsif ( $type eq "exon_number" ) { $exonNum = substr ( $field, $index+2, -1 ); }
+        }
+=cut
+        if ( ( $feature eq "gene" ) and ( $geneID ) ) {                   # not defined in ensembl
+            if ( defined $gene_info{$geneID} ) { print STDERR "Warnning! skipping line $lineCount of repeated geneID: $geneID\n\t$line\n"; next; }
+            $gene_info{$geneID}{chr} = $chr; $gene_info{$geneID}{strand} = $strand;
+            $gene_info{$geneID}{start} = $start; $gene_info{$geneID}{end} = $end;
+        }
+        if ( ( $feature eq "transcript" ) and ( $transcriptID ) ) {       # not defined in ensembl
+            if ( not $geneID ) { print STDERR "Warnning! skipping line $lineCount of no geneID:\n\t$line\n"; next; }
+            if ( defined $transcript_info{$transcriptID} ) 
+                { print STDERR "Warnning! skipping line $lineCount of repeated transcriptID: $transcriptID\n\t$line\n"; next; }
+            push @{$gene_info{$geneID}{transcript}}, $transcriptID;
+            $transcript_info{$transcriptID}{gene} = $geneID;
+            $transcript_info{$transcriptID}{start} = $start; $transcript_info{$transcriptID}{end} = $end;
+        }
+=cut
+        if ( $feature eq "exon" ) {                   # so far we only deal with exon
+            if ( not $geneID ) { print STDERR "Warnning! skipping line $lineCount of no geneID:\n\t$line\n"; next; }
+            if ( not $transcriptID ) { print STDERR "Warnning! skipping line $lineCount of no transcriptID:\n\t$line\n"; next; }
+            if ( not $exonID ) { print STDERR "Warnning! skipping line $lineCount of no exonID:\n\t$line\n"; next; }
+
+            if ( defined $exon_info{$exonID} ) {
+                if ( ( $exon_info{$exonID}{start} != $start ) or ( $exon_info{$exonID}{end} != $end ) ) 
+                    { print STDERR "Error! line $lineCount of inconsistent exonID $exonID:\n\t$line\n"; next; }
+            }
+            if ( defined $transcript_info{$transcriptID} ) {
+                if ( not defined $gene_info{$geneID} ) 
+                    { print STDERR "Warnning! in consistent transcript annotation of transcript $transcriptID in $line\n"; next; }
+                if ( $transcript_info{$transcriptID}{gene} ne $geneID ) 
+                    { print STDERR "Warnning! in consistent transcript annotation of transcript $transcriptID in $line\n"; next; }
+                if ( defined $transcript_info{$transcriptID}{exon}{$exonNum} ) 
+                    { print STDERR "Warnning! skipping line $lineCount of repeated exon_number $exonNum:\n\t$line\n"; next; }
+            }
+            if ( defined $gene_info{$geneID} ) {
+                if ( ( $gene_info{$geneID}{chr} ne $chr ) or ( $gene_info{$geneID}{strand} ne $strand ) )
+                    { print STDERR "Warnning! in consistent location annotation of gene $geneID in $line\n"; next; }
+            }
+
+            if ( not defined $chr_size{$chr} ) { $chr_size{$chr} = $end; }
+            else { $chr_size{$chr} = $end if ( $end > $chr_size{$chr} ); }
+
+            if ( not defined $gene_info{$geneID} ) {
+                $gene_info{$geneID}{chr} = $chr; $gene_info{$geneID}{strand} = $strand;
+                $gene_info{$geneID}{start} = $start; $gene_info{$geneID}{end} = $end;
+            }
+            else {
+                $gene_info{$geneID}{start} = $start if ( $start < $gene_info{$geneID}{start} ); 
+                $gene_info{$geneID}{end} = $end if ( $end > $gene_info{$geneID}{end} );
+            }
+
+            if ( not defined $transcript_info{$transcriptID} ) {
+                $transcript_info{$transcriptID}{gene} = $geneID;
+                $transcript_info{$transcriptID}{start} = $start; $transcript_info{$transcriptID}{end} = $end;
+                push @{$gene_info{$geneID}{transcript}}, $transcriptID;
+            }
+            else {
+                $transcript_info{$transcriptID}{start} = $start if ( $start < $transcript_info{$transcriptID}{start} ); 
+                $transcript_info{$transcriptID}{end} = $end if ( $end > $transcript_info{$transcriptID}{end} );
+            }
+
+            $transcript_info{$transcriptID}{exon}{$exonNum} = $exonID;
+            $exon_info{$exonID}{start} = $start; $exon_info{$exonID}{end} = $end;
+        }
+    }
+    close GTF;
+
+    return { 
+        chr_size            => \%chr_size,
+        gene_info           => \%gene_info, 
+        transcript_info     => \%transcript_info, 
+        exon_info           => \%exon_info 
+    };
 }
 
 sub readGTF_ensembl {
