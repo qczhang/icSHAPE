@@ -6,8 +6,8 @@ use lib "$ENV{ICSHAPE}/module";
 use Getopt::Std;
 use icSHAPEutil qw( &readGTF_ensembl_new );
 
-use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_a $opt_f $opt_b $opt_s );
-&getopts('hVDi:a:o:f:b:s');
+use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_a $opt_f $opt_s $opt_b $opt_p );
+&getopts('hVDi:a:o:f:s:b:p');
 
 my $usage = <<_EOH_;
 ## --------------------------------------
@@ -21,9 +21,14 @@ $0 -i genome_coordinates -o transcript_coordinates -a annotation_file
  -o     transcript coordinates
  -a     annotation file (GTF format)
 
- -f     annotation source (e.g., ensembl, gencode, ...)
- -b     bin width 
- -s     skip nonoverlapped regions
+# more options
+ -f     genomic coordinates format
+            bed: normal bed6 format
+            simple: no strand information, then both strand will be searched
+            single: only one position 
+ -s     annotation source. e.g., ensembl (default), gencode, ...
+ -b     bin width (if not specified, will be determined from input genomic coordinates)
+ -p     print nonoverlapped regions
 
 _EOH_
 ;
@@ -37,13 +42,12 @@ sub main {
     my $transcriptFile = $parameters{transcriptFile};
     my $annotationFile = $parameters{annotationFile};
 
-    my $ref_position = readGenomePosition ( $genomeFile, format => "bed" );
-    my $ref_annotation = readGTF_ensembl_new ( $parameters{annotationFile} );
+    my $ref_position = readGenomePosition ( $genomeFile, format => $parameters{format} );
+    my $ref_annotation = readGTF_ensembl_new ( $parameters{annotationFile}, verbose => $opt_V );
+    my $ref_bin = binize ( $ref_annotation->{gene_info}, $ref_annotation->{chr_size}, bw => $parameters{bw} );
 
-    my $ref_bin = binize ( $ref_annotation->{gene_info}, $ref_annotation->{chr_size} );
-
-    &convert ( $ref_position, $ref_annotation, $ref_bin, 1000000 );
-    &printPosition ( $ref_position, $transcriptFile, skipNonOverlap => $parameters{skipNonOverlap} );
+    &convert ( $ref_position, $ref_annotation, $ref_bin, bw => $parameters{bw} );
+    &printPosition ( $ref_position, $transcriptFile, printNonOverlap => $parameters{printNonOverlap} );
 
     1;
 }
@@ -63,12 +67,14 @@ sub init
     $parameters{transcriptFile} = $opt_o;
     $parameters{annotationFile} = $opt_a;
 
-    if ( defined $opt_f ) { $parameters{annotationSource} = $opt_f; }
+    if ( defined $opt_f ) { $parameters{format} = $opt_f; }
+    else { $parameters{format} = "bed"; }
+    if ( defined $opt_s ) { $parameters{annotationSource} = $opt_s; }
     else { $parameters{annotationSource} = "ensembl"; }
     if ( defined $opt_b ) { $parameters{bw} = $opt_b; }
-    else { $parameters{bw} = 1; }
-    if ( defined $opt_s ) { $parameters{skipNonOverlap} = 1; }
-    else { $parameters{skipNonOverlap} = 0; }
+    else { $parameters{bw} = 100000; }
+    if ( defined $opt_p ) { $parameters{printNonOverlap} = 1; }
+    else { $parameters{printNonOverlap} = 0; }
 
     return ( %parameters );
 }
@@ -86,6 +92,7 @@ sub readGenomePosition
         next if ( $line =~ /^#/ );
 
         chomp $line;
+        $absPosition[$count]{info} = $line;
         my ( $chr, $start, $end, $strand, @data ) = split ( /\t/, $line );
         $chr =~ s/^chr//;
 
@@ -123,7 +130,7 @@ sub binize
     my %parameters = @_;
 
     print STDERR "Binize genome to speed up searching.\n\t", `date`;
-    my $bw = ( defined $parameters{bw} ) ? $parameters{bw} : 1000000;
+    my $bw = $parameters{bw};
     my %bin = ();
     foreach my $chr ( keys %{$ref_chr_size} ) {
         my $count = int ( $ref_chr_size->{$chr} / $bw ) + 1;
@@ -146,11 +153,13 @@ sub convert
     my $ref_positions = shift;
     my $ref_annotation = shift;
     my $ref_bin = shift;
-    my $bw = shift;
+    my %parameters = @_;
 
     print STDERR "Checking overlapped transcripts in input positions...\n\t", `date`;
+    my $bw = $parameters{bw};
+    my $overlapCount = 0;
     for ( my $idx = 0; $idx < scalar ( @{$ref_positions} ); $idx++ ) {
-        print STDERR "position $idx\n\t", `date` if ( $idx and ( $idx % 10000 == 0 ) ); 
+        print STDERR "position $idx\t", `date` if ( $idx and ( $idx % 10000 == 0 ) ); 
 
         my @overlapRegion = ();
         my $chr = $ref_positions->[$idx]{chr};
@@ -164,34 +173,14 @@ sub convert
                 next if ( ( $end < $ref_annotation->{gene_info}{$gene}{start} ) or ( $start > $ref_annotation->{gene_info}{$gene}{end} ) );
                 foreach my $transID ( @{$ref_annotation->{gene_info}{$gene}{transcript}} ) {
                     next if ( ( $end < $ref_annotation->{transcript_info}{$transID}{start} ) or ( $start > $ref_annotation->{transcript_info}{$transID}{end} ) );
-                    &overlapTrans ( \@overlapRegion, $ref_annotation, $transID, $strand, $start, $end );
+                    $overlapCount += &overlapTrans ( \@overlapRegion, $ref_annotation, $transID, $strand, $start, $end );
                     $ref_positions->[$idx]{overlap} = \@overlapRegion;
                 }
             }
         }
     }
 
-    1;
-}
-
-sub printPosition
-{
-    my $ref_positions = shift;
-    my $outFile = shift;
-    my %parameters = @_;
-
-    open ( OUT, ">$outFile" ) or die "Cannot open $outFile to write!\n";
-    print STDERR "Output overlapped transcripts to $outFile.\n\t", `date`;
-    for ( my $idx = 0; $idx < scalar ( @{$ref_positions} ); $idx++ ) {
-        if ( $ref_positions->[$idx]{overlap} ) {
-            foreach my $overlap ( @{$ref_positions->[$idx]{overlap}} ) 
-                { print OUT join ( "\t", $ref_positions->[$idx]{chr}, $ref_positions->[$idx]{start}, $ref_positions->[$idx]{end}, $ref_positions->[$idx]{strand}, $overlap), "\n"; }
-        }
-        elsif ( not $parameters{skipNonOverlap} ) 
-            { print OUT join ( "\t", $ref_positions->[$idx]{chr}, $ref_positions->[$idx]{start}, $ref_positions->[$idx]{end}, $ref_positions->[$idx]{strand}, ".", ".", ".", ".", "."), "\n"; }
-    }
-
-    1;
+    return $overlapCount;
 }
 
 sub overlapTrans
@@ -203,6 +192,7 @@ sub overlapTrans
     my $transcript = $ref_annotation->{transcript_info}{$transID};
     my $numExon = scalar ( keys %{$transcript->{exon}} );
 
+    my $overlapCount = 0;
     my $relExonStart = 0;  my $startPosiInExon = 0; my $endPosiInExon = 0; my $absStartInExon = 0; my $absEndInExon = 0; 
     for ( my $idxExon = 1; $idxExon <= $numExon; $idxExon++ ) {
         my $idxExonWithStrand = ( $strand eq "+" ) ? $idxExon : ( $numExon - $idxExon + 1 );
@@ -234,11 +224,31 @@ sub overlapTrans
 
             my $overlapString = join ( "\t", $absStartInExon, $absEndInExon, $transID, $relStart, $relEnd );
             push @{$ref_overlapRegion}, $overlapString;
+            $overlapCount++;
         }
 
         $relExonStart += $exonLength;
     }
 
-    1;
+    return $overlapCount;
 }
 
+sub printPosition
+{
+    my $ref_positions = shift;
+    my $outFile = shift;
+    my %parameters = @_;
+
+    open ( OUT, ">$outFile" ) or die "Cannot open $outFile to write!\n";
+    print STDERR "Output overlapped transcripts to $outFile.\n\t", `date`;
+    for ( my $idx = 0; $idx < scalar ( @{$ref_positions} ); $idx++ ) {
+        if ( $ref_positions->[$idx]{overlap} ) {
+            foreach my $overlap ( @{$ref_positions->[$idx]{overlap}} ) 
+                { print OUT join ( "\t", $ref_positions->[$idx]{info}, $overlap), "\n"; }
+        }
+        elsif ( $parameters{printNonOverlap} ) 
+            { print OUT join ( "\t", $ref_positions->[$idx]{info}, ".", ".", ".", ".", "."), "\n"; }
+    }
+
+    1;
+}
