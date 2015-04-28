@@ -5,6 +5,7 @@ use warnings;
 use lib "$ENV{ICSHAPE}/module";
 use Getopt::Std;
 use icSHAPEutil qw( &readGTF_ensembl_new );
+use Data::Dumper;
 
 use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_a $opt_f $opt_s $opt_b $opt_p );
 &getopts('hVDi:a:o:f:s:b:p');
@@ -105,6 +106,7 @@ sub readGenomePosition
             $absPosition[$count]{chr} = $chr; $absPosition[$count]{strand} = "+";
             $absPosition[$count]{start} = $start; $absPosition[$count]{end} = $end;
             $count++;
+            $absPosition[$count]{info} = $line;
             $absPosition[$count]{chr} = $chr; $absPosition[$count]{strand} = "-";
             $absPosition[$count]{start} = $start; $absPosition[$count]{end} = $end;
         }
@@ -112,6 +114,7 @@ sub readGenomePosition
             $absPosition[$count]{chr} = $chr; $absPosition[$count]{strand} = "+";
             $absPosition[$count]{start} = $start; $absPosition[$count]{end} = $start+1;
             $count++;
+            $absPosition[$count]{info} = $line;
             $absPosition[$count]{chr} = $chr; $absPosition[$count]{strand} = "-";
             $absPosition[$count]{start} = $start; $absPosition[$count]{end} = $start+1;
         }
@@ -245,6 +248,7 @@ sub printPosition
         if ( $ref_positions->[$idx]{overlap} ) {
             foreach my $overlap ( @{$ref_positions->[$idx]{overlap}} ) 
                 { print OUT join ( "\t", $ref_positions->[$idx]{info}, $overlap), "\n"; }
+            
         }
         elsif ( $parameters{printNonOverlap} ) 
             { print OUT join ( "\t", $ref_positions->[$idx]{info}, ".", ".", ".", ".", "."), "\n"; }
