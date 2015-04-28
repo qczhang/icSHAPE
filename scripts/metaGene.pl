@@ -64,6 +64,9 @@ sub main {
     }
 
     my @avgNum = ( ); my @avgProfile = ( );
+    if ( defined $parameters{positionFile} ) { @avgNum = newArray ( 100 ); @avgProfile = newArray ( 100 ); }
+    elsif ( defined $parameters{gtfFile} ) { @avgNum = newArray ( 300 ); @avgProfile = newArray ( 300 ); }
+
     my $lineCount = 0;
     open ( TR, $transcriptFile );
     while ( my $line = <TR> ) {
@@ -76,16 +79,14 @@ sub main {
         my $biotypeString = getBioType ( $transID, $ref_annotation );
 
         if ( defined $parameters{positionFile} ) {
-            @avgNum = newArray ( 100 ); @avgProfile = newArray ( 100 );
             if ( defined $ref_position->{$transID} ) { &positionProfile ( $transID, \@profile, $heatmapFile, \@avgNum, \@avgProfile, $ref_position->{$transID} ); }
         }
         elsif ( defined $parameters{gtfFile} ) {
-            @avgNum = newArray ( 300 ); @avgProfile = newArray ( 300 );
             if ( $biotypeString eq "protein coding" ) {
                 if ( ( defined $ref_annotation->{$transID}{start_codon} ) and ( defined $ref_annotation->{$transID}{stop_codon} ) ) {
                     &geneProfile ( $transID, \@profile, $heatmapFile, \@avgNum, \@avgProfile, $ref_annotation );
                 }
-                else { print STDERR "Warning! protein coding transcript $transID has no annotation!\n"; }
+                else { print STDERR "Warning! protein coding transcript $transID has no start and stop codon annotation...skipped!\n"; }
             }
         }
     }
@@ -115,9 +116,9 @@ sub init
     else { $parameters{gtfSource} = "ensembl"; }
     if ( defined $opt_c ) { 
         die "Column out of range!\n" if ( $opt_c < 2 );
-        $parameters{profileCol} = $opt_c - 1; 
+        $parameters{profileCol} = $opt_c - 2; 
     }
-    else { $parameters{profileCol} = 1; }
+    else { $parameters{profileCol} = 0; }
 
     return ( %parameters );
 }
@@ -184,33 +185,42 @@ sub geneProfile
     }
 
     if ( $fivePrimeLen < 50 ) {
-        print STDERR "$transID 5 prime length less than 50!\n" if ( $opt_V );
+        print STDERR "$transID 5 prime length $fivePrimeLen less than 50!\n" if ( $opt_V );
         if ( defined $heatmapFile ) { for ( my $posIdx = 0; $posIdx < ( 50 - $fivePrimeLen ); $posIdx++ ) { print OUT "\tNULL"; } }
         for ( my $posIdx = 0; $posIdx < $TSSpos; $posIdx++ ) {
-            if ( defined $heatmapFile ) { print OUT "\t", $ref_profile->[$posIdx]; }
-            if ( $ref_profile->[$posIdx] ne "NULL" ) {
+            my $value = "NULL";
+            if ( defined $ref_profile->[$posIdx] ) { $value = $ref_profile->[$posIdx]; }
+            else { print STDERR "Warning! Inconsistent annotation? Position $posIdx of $transID not defined!\n"; }
+            if ( defined $heatmapFile ) { print OUT "\t", $value; }
+            if ( $value ne "NULL" ) {
                 $ref_avgNum->[50-$fivePrimeLen+$posIdx]++;
-                $ref_avgProfile->[50-$fivePrimeLen+$posIdx] += $ref_profile->[$posIdx];
+                $ref_avgProfile->[50-$fivePrimeLen+$posIdx] += $value;
             }
         }
     }
     else {
         for ( my $posIdx = ( $TSSpos - 50 ); $posIdx < $TSSpos; $posIdx++ ) {
-            if ( defined $heatmapFile ) { print OUT "\t", $ref_profile->[$posIdx]; }
-            if ( $ref_profile->[$posIdx] ne "NULL" ) {
+            my $value = "NULL";
+            if ( defined $ref_profile->[$posIdx] ) { $value = $ref_profile->[$posIdx]; }
+            else { print STDERR "Warning! Inconsistent annotation? Position $posIdx of $transID not defined!\n"; }
+            if ( defined $heatmapFile ) { print OUT "\t", $value; }
+            if ( $value ne "NULL" ) {
                 $ref_avgNum->[50-$fivePrimeLen+$posIdx]++;
-                $ref_avgProfile->[50-$fivePrimeLen+$posIdx] += $ref_profile->[$posIdx];
+                $ref_avgProfile->[50-$fivePrimeLen+$posIdx] += $value;
             }
         }
     }
 
     if ( $CDSlen < 100 ) {
-        print STDERR "$transID CDS length less than 50!\n" if ( $opt_V );
+        print STDERR "$transID CDS length $CDSlen less than 50!\n" if ( $opt_V );
         for ( my $posIdx = $TSSpos; $posIdx < ( $TSSpos + $CDSlen ); $posIdx++ ) {
-            if ( defined $heatmapFile ) { print OUT "\t", $ref_profile->[$posIdx]; }
-            if ( $ref_profile->[$posIdx] ne "NULL" ) {
+            my $value = "NULL";
+            if ( defined $ref_profile->[$posIdx] ) { $value = $ref_profile->[$posIdx]; }
+            else { print STDERR "Warning! Inconsistent annotation? Position $posIdx of $transID not defined!\n"; }
+            if ( defined $heatmapFile ) { print OUT "\t", $value; }
+            if ( $value ne "NULL" ) {
                 $ref_avgNum->[50-$fivePrimeLen+$posIdx]++;
-                $ref_avgProfile->[50-$fivePrimeLen+$posIdx] += $ref_profile->[$posIdx];
+                $ref_avgProfile->[50-$fivePrimeLen+$posIdx] += $value;
             }
         }
         if ( defined $heatmapFile ) {
@@ -218,37 +228,49 @@ sub geneProfile
             for ( my $posIdx = 0; $posIdx < ( 100 - $CDSlen ); $posIdx++ ) { print OUT "\tNULL"; }
         }
         for ( my $posIdx = ( $TESpos - 100 ); $posIdx < $TESpos; $posIdx++ ) {
-            if ( defined $heatmapFile ) { print OUT "\t", $ref_profile->[$posIdx]; }
-            if ( $ref_profile->[$posIdx] ne "NULL" ) {
+            my $value = "NULL";
+            if ( defined $ref_profile->[$posIdx] ) { $value = $ref_profile->[$posIdx]; }
+            else { print STDERR "Warning! Inconsistent annotation? Position $posIdx of $transID not defined!\n"; }
+            if ( defined $heatmapFile ) { print OUT "\t", $value; }
+            if ( $value ne "NULL" ) {
                 $ref_avgNum->[250-$fivePrimeLen-$CDSlen+$posIdx]++;
-                $ref_avgProfile->[250-$fivePrimeLen-$CDSlen+$posIdx] += $ref_profile->[$posIdx];
+                $ref_avgProfile->[250-$fivePrimeLen-$CDSlen+$posIdx] += $value;
             }
         }
     }
     else {
         for ( my $posIdx = $TSSpos; $posIdx < ( $TSSpos + 100 ); $posIdx++ ) {
-            if ( defined $heatmapFile ) { print OUT "\t", $ref_profile->[$posIdx]; }
-            if ( $ref_profile->[$posIdx] ne "NULL" ) {
+            my $value = "NULL";
+            if ( defined $ref_profile->[$posIdx] ) { $value = $ref_profile->[$posIdx]; }
+            else { print STDERR "Warning! Inconsistent annotation? Position $posIdx of $transID not defined!\n"; }
+            if ( defined $heatmapFile ) { print OUT "\t", $value; }
+            if ( $value ne "NULL" ) {
                 $ref_avgNum->[50-$fivePrimeLen+$posIdx]++;
-                $ref_avgProfile->[50-$fivePrimeLen+$posIdx] += $ref_profile->[$posIdx];
+                $ref_avgProfile->[50-$fivePrimeLen+$posIdx] += $value;
             }
         }
         for ( my $posIdx = ( $TESpos - 100 ); $posIdx < $TESpos; $posIdx++ ) {
-            if ( defined $heatmapFile ) { print OUT "\t", $ref_profile->[$posIdx]; }
-            if ( $ref_profile->[$posIdx] ne "NULL" ) {
+            my $value = "NULL";
+            if ( defined $ref_profile->[$posIdx] ) { $value = $ref_profile->[$posIdx]; }
+            else { print STDERR "Warning! Inconsistent annotation? Position $posIdx of $transID not defined!\n"; }
+            if ( defined $heatmapFile ) { print OUT "\t", $value; }
+            if ( $value ne "NULL" ) {
                 $ref_avgNum->[250-$fivePrimeLen-$CDSlen+$posIdx]++;
-                $ref_avgProfile->[250-$fivePrimeLen-$CDSlen+$posIdx] += $ref_profile->[$posIdx];
+                $ref_avgProfile->[250-$fivePrimeLen-$CDSlen+$posIdx] += $value;
             }
         }
     }
 
     if ( $threePrimeLen < 50 ) {
-        print STDERR "$transID 3 prime length less than 50!\n" if ( $opt_V );
+        print STDERR "$transID 3 prime length $threePrimeLen less than 50!\n" if ( $opt_V );
         for ( my $posIdx = $TESpos; $posIdx < ( $TESpos + $threePrimeLen ); $posIdx++ ) {
-            if ( defined $heatmapFile ) { print OUT "\t", $ref_profile->[$posIdx]; }
-            if ( $ref_profile->[$posIdx] ne "NULL" ) {
+            my $value = "NULL";
+            if ( defined $ref_profile->[$posIdx] ) { $value = $ref_profile->[$posIdx]; }
+            else { print STDERR "Warning! Inconsistent annotation? Position $posIdx of $transID not defined!\n"; }
+            if ( defined $heatmapFile ) { print OUT "\t", $value; }
+            if ( $value ne "NULL" ) {
                 $ref_avgNum->[250-$fivePrimeLen-$CDSlen+$posIdx]++;
-                $ref_avgProfile->[250-$fivePrimeLen-$CDSlen+$posIdx] += $ref_profile->[$posIdx];
+                $ref_avgProfile->[250-$fivePrimeLen-$CDSlen+$posIdx] += $value;
             }
         }
         if ( defined $heatmapFile ) {
@@ -257,10 +279,13 @@ sub geneProfile
     }
     else {
         for ( my $posIdx = $TESpos; $posIdx < ( $TESpos + 50 ); $posIdx++ ) {
-            if ( defined $heatmapFile ) { print OUT "\t", $ref_profile->[$posIdx]; }
-            if ( $ref_profile->[$posIdx] ne "NULL" ) {
+            my $value = "NULL";
+            if ( defined $ref_profile->[$posIdx] ) { $value = $ref_profile->[$posIdx]; }
+            else { print STDERR "Warning! Inconsistent annotation? Position $posIdx of $transID not defined!\n"; }
+            if ( defined $heatmapFile ) { print OUT "\t", $value; }
+            if ( $value ne "NULL" ) {
                 $ref_avgNum->[250-$fivePrimeLen-$CDSlen+$posIdx]++;
-                $ref_avgProfile->[250-$fivePrimeLen-$CDSlen+$posIdx] += $ref_profile->[$posIdx];
+                $ref_avgProfile->[250-$fivePrimeLen-$CDSlen+$posIdx] += $value;
             }
         }
     }
@@ -274,7 +299,7 @@ sub printAverage
     my $ref_numArray = shift;
     my $ref_avgArray = shift;
 
-    open ( OUT, ">>$outFile" ) or die ( "Could not open file $outFile for reading!\n" );
+    open ( OUT, ">$outFile" ) or die ( "Could not open file $outFile for reading!\n" );
     print OUT "count";
     for ( my $idx = 0; $idx < scalar ( @{$ref_numArray} ); $idx++ ) {
         print OUT "\t", $ref_numArray->[$idx];
