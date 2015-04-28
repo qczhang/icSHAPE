@@ -5,6 +5,7 @@ use strict;
 use warnings;
 use File::Basename;
 use Getopt::Std;
+use Statistics::Basic qw(:all);
 
 use vars qw ($opt_h $opt_V $opt_D $opt_1 $opt_2 $opt_s $opt_f $opt_c $opt_w $opt_t $opt_b $opt_T );
 &getopts('hVD1:2:o:s:f:c:w:t:b:T:');
