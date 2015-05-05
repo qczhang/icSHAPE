@@ -3,8 +3,8 @@
 use strict;
 use warnings;
 
-use lib "/home/qczhang/lib/perllib";
 use Data::Dumper;
+use lib "$ENV{ICSHAPE}/module";
 use IO qw( &readGTF &readFasta );
 
 my %parameters = ( 
