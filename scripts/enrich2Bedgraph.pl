@@ -5,7 +5,7 @@ use warnings;
 
 use lib "/home/qczhang/lib/perllib";
 use Data::Dumper;
-use Locale::Bio::IO qw( &readGTF &readFasta );
+use IO qw( &readGTF &readFasta );
 
 my %parameters = ( 
     gtfFile => "/home/qczhang/database/ensembl/current/mouse/gtf/Mus_musculus.GRCm38.74.gtf",
