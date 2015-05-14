@@ -3,12 +3,12 @@
 use strict;
 use warnings;
 
-use Data::Dumper;
+use Getopt::Std;
 use lib "$ENV{ICSHAPE}/module";
 use IO qw( &readGTF &readFasta );
 
 use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_a $opt_g $opt_f $opt_c );
-&getopts('hVDi:t:o:p:g:f:c:');
+&getopts('hVDi:o:a:g:f:c:');
 
 my $usage = <<_EOH_;
 ## --------------------------------------
@@ -43,6 +43,7 @@ sub main
         skip => "Blat" ); smallfix ( $ref_annotation );
     my ( $ref_seq ) = readFasta ( $parameters{fastaFile} );
 
+    if ( defined $parameters{bedgraphFile} ) { open ( OUT, ">$parameters{bedgraphFile}" ); }
     foreach my $ensemblID ( keys %{$ref_structure} ) {
         next if ( $ensemblID =~ /rRNA/ );
         my @seq = split ( //, $ref_seq->{$ensemblID} );
@@ -70,29 +71,33 @@ sub main
 
             if ( $ref_annotation->{$ensemblID}{strand} eq "+" ) {
                 my $absPos = $idxPos - $accumExonLen + $ref_start->[$currentExon] - 1;
-                print "chr", $ref_annotation->{$ensemblID}{exon}{seqName}[$currentExon], "\t", $absPos, "\t", $absPos+1; 
+                if ( defined $parameters{bedgraphFile} ) { print OUT "chr", $ref_annotation->{$ensemblID}{exon}{seqName}[$currentExon], "\t", $absPos, "\t", $absPos+1; }
+                else { print "chr", $ref_annotation->{$ensemblID}{exon}{seqName}[$currentExon], "\t", $absPos, "\t", $absPos+1; }
             }
             else {
                 my $absPos = - $idxPos + $accumExonLen + $ref_end->[$currentExon] - 1;
-                print "chr", $ref_annotation->{$ensemblID}{exon}{seqName}[$currentExon], "\t", $absPos, "\t", $absPos+1; 
+                if ( defined $parameters{bedgraphFile} ) { print OUT "chr", $ref_annotation->{$ensemblID}{exon}{seqName}[$currentExon], "\t", $absPos, "\t", $absPos+1; }
+                else { print "chr", $ref_annotation->{$ensemblID}{exon}{seqName}[$currentExon], "\t", $absPos, "\t", $absPos+1; }
             }
-            print "\t", $ref_structure->{$ensemblID}[$idxPos], "\t", $ensemblID, "\t", $seq[$idxPos], "\n";
+                if ( defined $parameters{bedgraphFile} ) { print OUT print "\t", $ref_structure->{$ensemblID}[$idxPos], "\t", $ensemblID, "\t", $seq[$idxPos], "\n"; }
+                else { print "\t", $ref_structure->{$ensemblID}[$idxPos], "\t", $ensemblID, "\t", $seq[$idxPos], "\n"; }
         }
     }
+    if ( defined $parameters{bedgraphFile} ) { close OUT; }
 }
 
 ## ---------------------
 sub init
 {
     my %parameters = ();
-    die $usage if ( $opt_h || ( not $opt_i ) || ( not $opt_o ) );
+    die $usage if ( $opt_h || ( not $opt_i ) );
 
     $opt_V = 0 if ( not defined $opt_V );
     $opt_D = 0 if ( not defined $opt_D );
     my $pwd = `pwd`;  chomp $pwd;
 
     $parameters{transcriptFile} = $opt_i;
-    $parameters{bedgraphFile} = $opt_o;
+    if ( defined $opt_o ) { $parameters{bedgraphFile} = $opt_o; }
 
     if ( defined $opt_g ) { $parameters{gtfFile} = $opt_g; }
     else {
