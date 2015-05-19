@@ -79,7 +79,7 @@ sub main
                 if ( defined $parameters{bedgraphFile} ) { print OUT "chr", $ref_annotation->{$ensemblID}{exon}{seqName}[$currentExon], "\t", $absPos, "\t", $absPos+1; }
                 else { print "chr", $ref_annotation->{$ensemblID}{exon}{seqName}[$currentExon], "\t", $absPos, "\t", $absPos+1; }
             }
-                if ( defined $parameters{bedgraphFile} ) { print OUT print "\t", $ref_structure->{$ensemblID}[$idxPos], "\t", $ensemblID, "\t", $seq[$idxPos], "\n"; }
+                if ( defined $parameters{bedgraphFile} ) { print OUT "\t", $ref_structure->{$ensemblID}[$idxPos], "\t", $ensemblID, "\t", $seq[$idxPos], "\n"; }
                 else { print "\t", $ref_structure->{$ensemblID}[$idxPos], "\t", $ensemblID, "\t", $seq[$idxPos], "\n"; }
         }
     }
