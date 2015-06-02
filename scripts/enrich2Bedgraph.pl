@@ -7,8 +7,8 @@ use Getopt::Std;
 use lib "$ENV{ICSHAPE}/module";
 use IO qw( &readGTF &readFasta );
 
-use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_a $opt_g $opt_f $opt_c );
-&getopts('hVDi:o:a:g:f:c:');
+use vars qw ($opt_h $opt_V $opt_D $opt_i $opt_o $opt_a $opt_g $opt_f $opt_c $opt_s );
+&getopts('hVDi:o:a:g:f:c:s:');
 
 my $usage = <<_EOH_;
 ## --------------------------------------
@@ -26,6 +26,8 @@ $0 -i transcript_profile -o output_bedgraph_file
  -f     gtf file format (default: ensembl)
  -a     fasta file
 
+ -s     genome size file - only these chromosomes will be kept
+
 _EOH_
 ;
 
@@ -42,10 +44,14 @@ sub main
         verbose => 1, 
         skip => "Blat" ); smallfix ( $ref_annotation );
     my ( $ref_seq ) = readFasta ( $parameters{fastaFile} );
+    my $ref_chr_size = readChrSize ( $parameters{genomeSize} ) if ( defined $parameters{genomeSize} );
 
     if ( defined $parameters{bedgraphFile} ) { open ( OUT, ">$parameters{bedgraphFile}" ); }
     foreach my $ensemblID ( keys %{$ref_structure} ) {
         next if ( $ensemblID =~ /rRNA/ );
+        my $ensemblChr = $ref_annotation->{$ensemblID}{exon}{seqName}[0];
+        next if ( not defined $ref_chr_size->{$ensemblChr} );
+
         my @seq = split ( //, $ref_seq->{$ensemblID} );
         my $annoLenExon = &getExonLen ( $ref_annotation->{$ensemblID} );
         my $structLen = scalar ( @{$ref_structure->{$ensemblID}} );
@@ -111,10 +117,31 @@ sub init
         print STDERR "Please specify transcript fasta file!\n";
         die $usage;
     }
+    if ( defined $opt_s ) { $parameters{genomeSize} = $opt_s; }
 
     return ( %parameters );
 }
 
+
+    my $ref_chr_size = readChrSize ( $parameters{genomeSize} ) if ( defined $parameters{genomeSize} );
+
+sub readChrSize
+{
+    my $genomeSizeFile = shift;
+    my %chr_size = ();
+
+    open ( GS, $genomeSizeFile );
+    while ( my $line = <GS> ) {
+        chomp $line;
+        my ( $chr, $size ) = split ( /\t/, $line );
+        $chr =~ s/^[chr|Chr|CHR]//;
+
+        $chr_size{$chr} = $size;
+    }
+    close GS;
+
+    return \%chr_size;
+}
 
 sub readStructureProfile 
 {
