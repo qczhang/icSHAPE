@@ -50,7 +50,7 @@ sub main
     foreach my $ensemblID ( keys %{$ref_structure} ) {
         next if ( $ensemblID =~ /rRNA/ );
         my $ensemblChr = $ref_annotation->{$ensemblID}{exon}{seqName}[0];
-        next if ( not defined $ref_chr_size->{$ensemblChr} );
+        if ( defined $parameters{genomeSize} ) { next if ( not defined $ref_chr_size->{$ensemblChr} ); }
 
         my @seq = split ( //, $ref_seq->{$ensemblID} );
         my $annoLenExon = &getExonLen ( $ref_annotation->{$ensemblID} );
