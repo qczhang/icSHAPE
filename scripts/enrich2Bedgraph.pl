@@ -122,9 +122,6 @@ sub init
     return ( %parameters );
 }
 
-
-    my $ref_chr_size = readChrSize ( $parameters{genomeSize} ) if ( defined $parameters{genomeSize} );
-
 sub readChrSize
 {
     my $genomeSizeFile = shift;
