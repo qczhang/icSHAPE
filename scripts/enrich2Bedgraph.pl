@@ -131,7 +131,7 @@ sub readChrSize
     while ( my $line = <GS> ) {
         chomp $line;
         my ( $chr, $size ) = split ( /\t/, $line );
-        $chr =~ s/^[chr|Chr|CHR]//;
+        $chr =~ s/^chr|^Chr|^CHR//;
 
         $chr_size{$chr} = $size;
     }
