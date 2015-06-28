@@ -49,15 +49,23 @@ sub main
     if ( defined $parameters{bedgraphFile} ) { open ( OUT, ">$parameters{bedgraphFile}" ); }
     foreach my $ensemblID ( keys %{$ref_structure} ) {
         next if ( $ensemblID =~ /rRNA/ );
+	if ( not defined $ref_annotation->{$ensemblID} ) { print STDERR "EnsemblID $ensemblID not in the annotation! Skipped.\n"; next; }
         my $ensemblChr = $ref_annotation->{$ensemblID}{exon}{seqName}[0];
-        if ( defined $parameters{genomeSize} ) { next if ( not defined $ref_chr_size->{$ensemblChr} ); }
+        if ( defined $parameters{genomeSize} ) { 
+		if ( not defined $ref_chr_size->{$ensemblChr} ) {
+			print STDERR "EnsemblID $ensemblID is in chromosome $ensemblChr and will be skipped!\n";
+			next;
+		}
+	}
 
         my @seq = split ( //, $ref_seq->{$ensemblID} );
         my $annoLenExon = &getExonLen ( $ref_annotation->{$ensemblID} );
         my $structLen = scalar ( @{$ref_structure->{$ensemblID}} );
         my $seqLen = scalar ( @seq );
         if ( ( $annoLenExon != $structLen ) or ( $structLen != $seqLen ) )  {
-            print STDERR "Error! inconsistency within sequence, structure and/or annotation!\n";
+            print STDERR "Error! inconsistency within sequence, structure and/or annotation of transcript $ensemblID!\n";
+            print STDERR "Length in annotation file: $annoLenExon, in sequence file: $seqLen, and in structure file: $structLen.\n";
+            print STDERR "Now skipping it...\n";
             next;
         }
 
