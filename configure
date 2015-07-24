@@ -1,6 +1,6 @@
 ## ***************************************************
 #
-# this is the configuration file for the pipeline Shape-seq
+# this is the configuration file for the pipeline icSHAPE
 #    options specified when running the wrapper shape_seq.pl will override settings here
 # the purpose of this file is to set some more stable parameters and
 #    some complex parameters that would be too clumsy to set in command line options
