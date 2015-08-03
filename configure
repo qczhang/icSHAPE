@@ -25,7 +25,8 @@ TAILINGTRIM     0
 TRIMMINLEN      25
 #
 ALIGNER         /srv/gs1/software/bowtie/2.0.5/bowtie2
-MAPPINGREF      $BOWTIELIB/mouse/ensembl.transcriptome
+#MAPPINGREF      $BOWTIELIB/mouse/ensembl.transcriptome
+MAPPINGREF      $ICSHAPE/data/bowtieLib/nanog
 MAPPINGOPTIONS  "--non-deterministic --time"
 #
 ESTIMATERPKM    $ICSHAPE/scripts/estimateRPKM.pl

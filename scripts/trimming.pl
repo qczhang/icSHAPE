@@ -63,8 +63,8 @@ sub main {
         }
 
         if ( defined $parameters{adapter} ) {
-            print STDERR "java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $inFile1 $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:4 TRAILING:20 MINLEN:$parameters{minLength}\n";
-            print STDERR `java -mx512m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $inFile1 $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:4 TRAILING:20 MINLEN:$parameters{minLength}`;
+            print STDERR "java -mx256m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $inFile1 $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:4 TRAILING:20 MINLEN:$parameters{minLength}\n";
+            print STDERR `java -mx256m -jar $trimmomatic SE -$parameters{coding} -trimlog $parameters{trimlog} $inFile1 $parameters{output1} ILLUMINACLIP:$parameters{adapter}:2:30:4 TRAILING:20 MINLEN:$parameters{minLength}`;
             if ( $? ) { die "Error in running trimmomatic for file $inFile1!\n"; }
         }
     }
