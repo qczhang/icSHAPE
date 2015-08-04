@@ -12,49 +12,83 @@
 ## ***************************************************
 #
 FASTQCODING     phred33
+### fastq file quality coding used in trimming and alignment
 #
 COLLAPSEBIN     $ICSHAPE/scripts/readCollapse.pl
+### read collapse script to remove PCR duplcates
 COLLAPSEFASTA   collapse.fa
+### output fastq file from read collapse script
 #
 JAVABIN         /usr/java/latest/bin/java
+### location of system java
 TRIMMER         $ICSHAPE/scripts/trimming.pl
+### trimming script to remove 3' adaptor and 5' barcodes
 TRIMLOG         trimming.log
+### log file of trimming running
 ADAPTER         $ICSHAPE/data/TruSeq2-PE.fa
+### location of adaptor sequence used in trimming programs
 LEADINGTRIM     13
+### length of 5' barcode to be trimmed off
 TAILINGTRIM     0
+### length of 3' sequence to be trimmed off
 TRIMMINLEN      25
+### minimum length of reads to keep
 #
 ALIGNER         /srv/gs1/software/bowtie/2.0.5/bowtie2
+### location of reads alignment tool
 #MAPPINGREF      $BOWTIELIB/mouse/ensembl.transcriptome
 MAPPINGREF      $ICSHAPE/data/bowtieLib/nanog
+### location of mapping library
 MAPPINGOPTIONS  "--non-deterministic --time"
+### mapping options to be passed to aligner
 #
 ESTIMATERPKM    $ICSHAPE/scripts/estimateRPKM.pl
+### script to estimate transcript abundance
 MINLOAD         5
+### load cutoff to keep transcripts after abundance estimation
 CALCRT          $ICSHAPE/scripts/calcRT.pl
+### script to calculate raw RT scores at each position of nucleotide
 #
-COMBINEBIN      $ICSHAPE/scripts/combineRTreplicates.pl
 CORRELATEBIN    $ICSHAPE/scripts/correlationRT.pl
+### script to calculate transcript correlations in each replicate
+COMBINEBIN      $ICSHAPE/scripts/combineRTreplicates.pl
+### script to combine replicates
 #
 NORMALIZEBIN    $ICSHAPE/scripts/normalizeRTfile.pl
+### script to normalize RT scores
 HEADTOSKIP      32
+### length of leading postions in each transcript to skip in normalization
 TAILTOSKIP      32
+### length of tailing postions in each transcript to skip in normalization
 METHOD          mean:vigintile2
+### string to define normalization method: "mean" means to calculate the mean value, and "vigintile2" means to select the second highest vigintile
 #
 CALCENRICHBIN   $ICSHAPE/scripts/calcEnrich.pl
+### script to calculate enrichment scores from target and background RT profiles
 WINSOR          factor5:scaling1
+### string to define winsorization method
 DIVFACTOR       10
 SUBFACTOR       0.25
+### alpha and beta parameter defined in the icSHAPE paper, used to calculate icSHAPE reactivity scores
 #
 FILTERENRICH    $ICSHAPE/scripts/filterEnrich.pl
+### script to select enrichment scores from raw scores by some cutoffs
+### the following are parameters to define cutoffs for selecting valid enrichment scores.
 INPUTCOVERAGE   200
+### the background sequencing cutoff
 TARGETHIT       2
+### the target hit-level
 HEADTOSKIP      5
+### number of heading nuclueotides to be skipped in the selection
 TAILTOSKIP      30
+### number of tailing nuclueotides to be skipped in the selection
 #
 SHAPE2BEDGRAPGH $ICSHAPE/scripts/shape2Bedgraph.pl
+### script to conver transcript shape score to genome bedgraph file
 BEDGRAPH2BIGWIG /srv/gs1/software/ucsc_tools/2.7.2/bin/x86_64/bedGraphToBigWig
+### tool to convert bedgraph format to big wig format
 GENOMESIZE      /home/qczhang/database/ensembl/current/mouse/dna/genome.sm.chr.size
+### genome size file that contains the informaiton of each sequence(usally chromosomes or scaffolds) length. To be used to convert bedgraph to bigwig.
 #
 ##----------------------------------------------------
 #
