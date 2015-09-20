@@ -130,6 +130,7 @@ sub simpleTrimSE {
         $len = length ( $seq ) - $headToTrim - $tailToTrim;
         next if ( ( $len < $minLen ) or ( $len < 0 ) );
         $seq = substr ( $seq, $headToTrim, $len );
+        next if ( length($seq) < $minLen );
         $quality = substr ( $quality, $headToTrim, $len );
 
         print OUT1 $key, $seq, $tag, $quality;
