@@ -128,10 +128,10 @@ sub simpleTrimSE {
         if ( $totalCount % 1000000 == 0 ) {    print STDERR $totalCount, "\n\t", `date`;  }
 
         $len = length ( $seq ) - $headToTrim - $tailToTrim;
+        next if ( ( $len < $minLen ) or ( $len < 0 ) );
         $seq = substr ( $seq, $headToTrim, $len );
         $quality = substr ( $quality, $headToTrim, $len );
 
-        next if ( length($seq) < $minLen );
         print OUT1 $key, $seq, $tag, $quality;
 
         $survival++;
