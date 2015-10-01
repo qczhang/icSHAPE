@@ -42,6 +42,8 @@ sub main {
 
     my $outDir = $parameters{outDirectory};
     if ( not -e $outDir ) { mkdir $outDir or die "Error! Create $outDir failed.\n"; }
+    my $tmpDir = $outDir . "/tmp";
+    if ( not -e $tmpDir ) { mkdir $tmpDir or die "Error! Create $tmpDir failed.\n"; }
 
     my @files1 = (); my @files2 = ();
     my @fs1 = split ( /:/, $parameters{input1} );
@@ -62,7 +64,7 @@ sub main {
         }
         else {
             my $file2 = $files2[$fileIdx];
-            my $inFastqFile = "/tmp/tmp$$.fastq";
+            my $inFastqFile = $tmpDir . "/tmp$$.fastq";
             _mergePairEndReads ( $file1, $file2, $inFastqFile );
             print STDERR "$splitFastqbin $inFastqFile $parameters{outDirectory} $parameters{BCPOS} $parameters{BCLENGTH} append $parameters{libraryCode}\n\t", `date`;
             print STDERR `$splitFastqbin $inFastqFile $parameters{outDirectory} $parameters{BCPOS} $parameters{BCLENGTH} append $parameters{libraryCode}`;

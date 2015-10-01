@@ -42,6 +42,9 @@ _EOH_
 sub main {
     my %parameters = &init();
 
+    my $tmpDir = $parameters{outputDir} . "/tmp";
+    if ( not -e $tmpDir ) {  print STDERR `mkdir $tmpDir` or die "Cannot create directory $tmpDir!\n";  }
+
     my $inFile = $parameters{input1};
     if ( -e $parameters{output1} ) { print STDERR "Warning! $parameters{output1} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output1}`; }
 
@@ -52,7 +55,7 @@ sub main {
     else {
         if ( -e $parameters{output2} ) { print STDERR "Warning! $parameters{output2} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output2}`; }
 
-        $inFile = "/tmp/tmp" . $$ . ".fastq";
+        $inFile = $tmpDir . "/tmp" . $$ . ".fastq";
         _mergePairEndReads ( $parameters{input1}, $parameters{input2}, $inFile );
 
         ( $totalReads, $survivalReads ) = simpleTrimPE ( $inFile, $parameters{output1}, $parameters{output2}, $parameters{HEADCROP}, $parameters{TAILCROP}, $parameters{MINLEN} );
@@ -80,8 +83,16 @@ sub init {
     if ( defined $opt_U ) {
         $parameters{input1} = $opt_U;
         my ($fileName, $fileDir, $fileSuffix) = fileparse($parameters{input1}, qr/\.[^.]*/);
-        if ( defined $opt_o ) { $parameters{output1} = $opt_o; }
-        else { $parameters{output1} = $pwd . "/" . $fileName . ".trimmed" . $fileSuffix; }
+
+        if ( defined $opt_o ) { 
+	    $parameters{output1} = $opt_o; 
+	    my ($ofileName, $ofileDir, $ofileSuffix) = fileparse($parameters{output1}, qr/\.[^.]*/);
+	    $parameters{outputDir} = $ofileDir; 
+	}
+        else { 
+	    $parameters{output1} = $pwd . "/" . $fileName . ".trimmed" . $fileSuffix; 
+	    $parameters{outputDir} = $pwd; 
+	}
 
         $parameters{isPairEnds} = 0;
     }
@@ -92,8 +103,16 @@ sub init {
         my ($fileName2, $fileDir2, $fileSuffix2) = fileparse($parameters{input2}, qr/\.[^.]*/);
         die "Error! Paired ends reads should have different names.\n" if ( $fileName1 eq $fileName2 );
 
-        if ( defined $opt_p ) { $parameters{output1} = $opt_p; }
-        else { $parameters{output1} = $pwd . "/" . $fileName1 . ".trimmed" . $fileSuffix1; }
+        if ( defined $opt_p ) { 
+	    $parameters{output1} = $opt_p; 
+	    my ($ofileName, $ofileDir, $ofileSuffix) = fileparse($parameters{output1}, qr/\.[^.]*/);
+	    $parameters{outputDir} = $ofileDir; 
+	}
+        else { 
+	    $parameters{output1} = $pwd . "/" . $fileName1 . ".trimmed" . $fileSuffix1; 
+	    $parameters{outputDir} = $pwd; 
+	}
+
         if ( defined $opt_q ) { $parameters{output2} = $opt_q; }
         else { $parameters{output2} = $pwd . "/" . $fileName2 . ".trimmed" . $fileSuffix2; }
 

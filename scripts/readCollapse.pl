@@ -46,6 +46,9 @@ _EOH_
 sub main {
     my %parameters = &init();
 
+    my $tmpDir = $parameters{outputDir} . "/tmp";
+    if ( not -e $tmpDir ) {  print STDERR `mkdir $tmpDir` or die "Cannot create directory $tmpDir!\n";  }
+
     my $inFile = $parameters{input1}; my $outFile = $parameters{output1};
     if ( not $parameters{isPairEnds} ) {
         print STDERR "Collapsing file $inFile...\n\t", `date`;
@@ -61,7 +64,7 @@ sub main {
             { print STDERR "Warning! $parameters{output2} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{output2}`; }
         if  ( ( defined $parameters{FASTA} ) and ( -e $parameters{FASTA} ) ) 
             { print STDERR "Warning! $parameters{FASTA} exisits, will be overwritten.\n"; print STDERR `/bin/rm $parameters{FASTA}`; }
-        $inFile = "/tmp/tmp" . $$ . ".fastq"; $outFile = "/tmp/tmpOut" . $$ . ".fastq";
+        $inFile = $tmpDir . "/tmp" . $$ . ".fastq"; $outFile = $tmpDir . "/tmpOut" . $$ . ".fastq";
         _mergePairEndReads ( $parameters{input1}, $parameters{input2}, $inFile );
     }
  
@@ -70,7 +73,7 @@ sub main {
     if ( $cLen > 0 ) {
         print STDERR "File $inFile too large, will be splitted...\n\t", `date`;
         shift @file2Collapse;
-        my $tmpOutDir = "/tmp";
+        my $tmpOutDir = $tmpDir;
         print STDERR "$splitFastqBin $inFile $tmpOutDir $cPos $cLen new\n\t", `date`;
         my $filesSplited = `$splitFastqBin $inFile $tmpOutDir $cPos $cLen new`;
         if ( $filesSplited =~ /^ERROR/i ) { die ( "Error! splitting file failed. quiting...\n\t" . `date` ); }       ## cleaning may be needed
@@ -118,8 +121,15 @@ sub init {
     if ( defined $opt_U ) {
         $parameters{input1} = $opt_U;
         my ($fileName, $fileDir, $fileSuffix) = fileparse($parameters{input1}, qr/\.[^.]*/);
-        if ( defined $opt_o ) { $parameters{output1} = $opt_o; }
-        else { $parameters{output1} = $pwd . "/" . $fileName . ".collapsed" . $fileSuffix; }
+        if ( defined $opt_o ) { 
+	    $parameters{output1} = $opt_o; 
+	    my ($ofileName, $ofileDir, $ofileSuffix) = fileparse($parameters{output1}, qr/\.[^.]*/);
+	    $parameters{outputDir} = $ofileDir; 
+	}
+        else { 
+	    $parameters{output1} = $pwd . "/" . $fileName . ".collapsed" . $fileSuffix; 
+	    $parameters{outputDir} = $pwd; 
+	}
         $parameters{isPairEnds} = 0;
     }
     elsif ( defined $opt_1 && defined $opt_2 )  {
@@ -128,8 +138,15 @@ sub init {
         $parameters{input2} = $opt_2;
         my ($fileName2, $fileDir2, $fileSuffix2) = fileparse($parameters{input2}, qr/\.[^.]*/);
 
-        if ( defined $opt_p ) { $parameters{output1} = $opt_p; }
-        else { $parameters{output1} = $pwd . "/" . $fileName1 . ".collapsed" . $fileSuffix1; }
+        if ( defined $opt_p ) { 
+	    $parameters{output1} = $opt_p; 
+	    my ($ofileName, $ofileDir, $ofileSuffix) = fileparse($parameters{output1}, qr/\.[^.]*/);
+	    $parameters{outputDir} = $ofileDir; 
+	}
+        else { 
+	    $parameters{output1} = $pwd . "/" . $fileName1 . ".collapsed" . $fileSuffix1; 
+	    $parameters{outputDir} = $pwd; 
+	}
         if ( defined $opt_q ) { $parameters{output2} = $opt_q; }
         else { $parameters{output2} = $pwd . "/" . $fileName2 . ".collapsed" . $fileSuffix2; }
 
